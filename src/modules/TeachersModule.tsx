@@ -14,7 +14,7 @@ const TeachersModule = () => {
       <header className="module-header">
         <div>
           <h1>Directorio de Docentes</h1>
-          <p className="subtitle">Gestiona el personal académico y sus asignaciones.</p>
+          <p className="subtitle">Gestiona el personal académico y sus asignacioness.</p>
         </div>
         <button className="btn btn-primary">
           <Plus size={20} />
@@ -52,11 +52,11 @@ const TeachersModule = () => {
                 <button className="btn-icon"><MoreVertical size={18} /></button>
               </div>
             </div>
-            
+
             <div className="teacher-info">
               <h3>{teacher.name}</h3>
               <p className="specialty">{teacher.specialty}</p>
-              
+
               <div className="info-badges">
                 <span className="badge">ID: {teacher.id}</span>
                 <span className="badge">{teacher.grades}</span>
@@ -73,7 +73,7 @@ const TeachersModule = () => {
                 <span>{teacher.phone}</span>
               </div>
             </div>
-            
+
             <div className="teacher-footer">
               <button className="btn btn-outline full-width">Ver Perfil Completo</button>
             </div>
@@ -81,7 +81,8 @@ const TeachersModule = () => {
         ))}
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .module-header {
           display: flex;
           justify-content: space-between;
