@@ -1,0 +1,13 @@
+# Reglas del Proyecto: Sistema de Gestión Escolar (SIGE)
+
+## Arquitectura y Tecnologías
+- **Estructura:** Monorepo dividido en `/frontend` y `/backend`.
+- **Frontend:** React + Vite + TypeScript + Tailwind CSS (Gestionado con pnpm).
+- **Backend:** Node.js + Express + TypeScript + `mssql` (Gestionado con pnpm).
+- **Base de Datos:** SQL Server local en 3FN con Roles de BD nativos.
+
+## Patrones Obligatorios de Código
+1. **Seguridad:** Autenticación mediante `sp_AutenticarUsuario` y registro con `sp_RegistrarUsuario` (SHA2_256 + Salt).
+2. **Robustez:** Todo endpoint del backend que altere datos debe usar transacciones con bloques `TRY...CATCH`.
+3. **Auditoría:** No usar eliminaciones físicas directas en tablas críticas; depender de la tabla `Bitacora` y del Trigger de borrado.
+4. **Optimización:** Usar CTEs o tablas temporales para consultas pesadas y registrar telemetría en `MonitoreoConsulta`.
