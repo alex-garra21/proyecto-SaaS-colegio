@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Login from './modules/Public/Login';
+import StudentAdventureModule from './modules/StudentAdventureModule';
 import {
   Database,
   CheckSquare,
@@ -30,7 +31,7 @@ export default function App() {
       } else if (user.idRol === 3) {
         setActiveTab('calificaciones');
       } else if (user.idRol === 4 || user.idRol === 5) {
-        setActiveTab('boleta');
+        setActiveTab('aventura-kids');
       }
     } else {
       setActiveTab('login');
@@ -235,9 +236,9 @@ export default function App() {
           {/* Menú de Sub-rutas secundario (Central, estilo del ejemplo) */}
           <div className="hidden md:flex items-center gap-6 text-[11px] font-semibold text-slate-500">
             <button
-              onClick={() => setActiveTab(user?.idRol === 1 ? 'backups' : user?.idRol === 3 ? 'calificaciones' : 'boleta')}
+              onClick={() => setActiveTab(user?.idRol === 1 ? 'backups' : user?.idRol === 3 ? 'calificaciones' : 'aventura-kids')}
               className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                ['backups', 'calificaciones', 'boleta'].includes(activeTab)
+                ['backups', 'calificaciones', 'aventura-kids'].includes(activeTab)
                   ? 'text-slate-950 border-b-2 border-slate-950 font-bold'
                   : ''
               }`}
@@ -252,6 +253,16 @@ export default function App() {
                 }`}
               >
                 Bitácoras
+              </button>
+            )}
+            {(user?.idRol === 4 || user?.idRol === 5) && (
+              <button
+                onClick={() => setActiveTab('boleta')}
+                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
+                  activeTab === 'boleta' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
+                }`}
+              >
+                Boleta
               </button>
             )}
             {(user?.idRol === 4 || user?.idRol === 5) && (
@@ -842,6 +853,13 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            </ProtectedRoute>
+          )}
+
+          {/* TAB 4: AVENTURA KIDS (ALUMNO/PADRE: ROL 4 O 5) */}
+          {activeTab === 'aventura-kids' && (
+            <ProtectedRoute allowedRoles={[4, 5]} onFallbackNavigate={() => setActiveTab('aventura-kids')}>
+              <StudentAdventureModule />
             </ProtectedRoute>
           )}
 

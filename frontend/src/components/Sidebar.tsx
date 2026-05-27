@@ -6,6 +6,7 @@ import {
   CheckSquare,
   BookOpen,
   Brain,
+  Sparkles,
   LogOut,
   HelpCircle,
   Settings,
@@ -49,6 +50,12 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       });
     } else if (role === 4 || role === 5) {
       items.push(
+        {
+          id: 'aventura-kids',
+          label: 'Aventura Kids',
+          icon: Sparkles,
+          description: 'Portal de Alumno'
+        },
         {
           id: 'boleta',
           label: 'Visualizar Boleta',
