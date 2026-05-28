@@ -1,13 +1,50 @@
-# Reglas del Proyecto: Sistema de Gestión Escolar (SIGE)
+# ============================================================================
+# REGLAS DEL PROYECTO: SISTEMA DE GESTIÓN ESCOLAR (SIGE)
+# ============================================================================
 
-## Arquitectura y Tecnologías
-- **Estructura:** Monorepo dividido en `/frontend` y `/backend`.
-- **Frontend:** React + Vite + TypeScript + Tailwind CSS (Gestionado con pnpm).
-- **Backend:** Node.js + Express + TypeScript + `mssql` (Gestionado con pnpm).
-- **Base de Datos:** SQL Server local en 3FN con Roles de BD nativos.
+## 1. Arquitectura General y Stack Tecnológico
+- **Estructura del Monorepo:** Dividido estrictamente en `/frontend` (cliente) y `/backend` (servidor de API).
+- **Ecosistema Frontend:** React + Vite + TypeScript + Tailwind CSS (Gestionado exclusivamente con `pnpm`).
+- **Ecosistema Backend:** Node.js + Express + TypeScript + `mssql` (Gestionado exclusivamente con `pnpm`).
+- **Infraestructura de Datos:** Servidor remoto SQL Server (Somee) estructurado en Tercera Forma Normal (3FN) con Roles de Base de Datos nativos.
 
-## Patrones Obligatorios de Código
-1. **Seguridad:** Autenticación mediante `sp_AutenticarUsuario` y registro con `sp_RegistrarUsuario` (SHA2_256 + Salt).
-2. **Robustez:** Todo endpoint del backend que altere datos debe usar transacciones con bloques `TRY...CATCH`.
-3. **Auditoría:** No usar eliminaciones físicas directas en tablas críticas; depender de la tabla `Bitacora` y del Trigger de borrado.
-4. **Optimización:** Usar CTEs o tablas temporales para consultas pesadas y registrar telemetría en `MonitoreoConsulta`.
+---
+
+## 2. Patrones Obligatorios de Backend y Base de Datos (Robustez, Seguridad y Auditoría)
+- **Seguridad Criptográfica:** El acceso al sistema se valida mediante `sp_AutenticarUsuario` y las altas con `sp_RegistrarUsuario`. Las contraseñas jamás se manejan en texto plano; se computan en el motor mediante `HASHBYTES('SHA2_256', password + Salt)`.
+- **Integridad Transaccional:** Todo endpoint del backend que realice mutaciones o alteraciones de datos en SQL Server debe estar encapsulado en transacciones implícitas o explícitas utilizando bloques `TRY...CATCH` para asegurar la atomicidad de las operaciones.
+- **Políticas de Resguardo e Inmutabilidad:** Queda estrictamente prohibido el uso de eliminaciones físicas (`DELETE`) directas sobre tablas críticas de la aplicación. Se debe depender de bajas lógicas alterando el bit `Estado` y delegar el resguardo histórico hacia la tabla `Bitacora` mediante disparadores (`TRIGGERS`) o procedimientos almacenados dedicados.
+- **Formato de Auditoría:** Las inserciones en la tabla `Bitacora` deben respetar el formato normalizado de strings delimitados por pipes (`|`), capturando de forma obligatoria el ID del usuario administrador ejecutor (ej: `'IdUsuario Afectado: X | Estado Resultante: Y'`).
+- **Optimización y Telemetría:** Las consultas complejas o reportes masivos deben optimizarse utilizando Expresiones de Tabla Comunes (CTEs). Toda ejecución crítica debe registrar sus tiempos de respuesta en la tabla `MonitoreoConsulta`.
+
+---
+
+## 3. Estructura de Frontend (Metodología Atomic Design)
+El desarrollo en `/frontend/src/components/` debe seguir estrictamente la jerarquía de diseño atómico para garantizar la reutilización y el orden limpio del código:
+- **atoms/**: Componentes visuales mínimos e indivisibles de control puro (ej. `CustomSelect.tsx`, `Button.tsx`, `Badge.tsx`, `Toast.tsx`). No se les permite inyectar lógica de negocio global o llamadas directas a APIs.
+- **molecules/**: Conjunto de dos o más átomos combinados para formar una unidad funcional reutilizable (ej. `FilterBar.tsx` agrupando buscador y selectores, `PaginationControls.tsx`).
+- **organisms/**: Estructuras de alta complejidad compuestas por moléculas y átomos que interactúan entre sí (ej. `UserTable.tsx`, `Sidebar.tsx`, `Navbar.tsx`).
+- **modules/ o pages/**: Vistas de alto nivel encargadas de orquestar los componentes, gestionar el estado de los contextos y consumir los servicios endpoints de la API (ej. `@Usuarios.tsx`).
+
+---
+
+## 4. Acabado Premium, UI de Alta Fidelidad y Microinteracciones
+- **Prohibición de Selectores Nativos:** Queda terminantemente prohibido el uso de la etiqueta estándar `<select>` del navegador en interfaces principales. Toda selección debe gestionarse mediante el átomo `CustomSelect`, implementando menús flotantes con posicionamiento absoluto (`absolute z-50`), sombras suavizadas (`shadow-xl`) y rotación animada de flechas indicadoras.
+- **Mecanismos de Defensa en UX (Auto-Bloqueo):** Las filas de tablas administrativas que correspondan al usuario logueado en la sesión actual deben inhabilitar automáticamente (`disabled`, `pointer-events-none` y opacidad reducida) los controles críticos de cambio de rol o toggle de estado, previniendo accidentes de auto-bloqueo de privilegios en caliente.
+- **Fluidez Visual:** Cada elemento interactivo (botones, enlaces, filas, switches) debe integrar transiciones de cambio de estado CSS fluidas mediante la utilería `transition-all duration-300 ease-in-out`.
+
+---
+
+## 5. Política de Notificaciones (UX Emocional y Toasts Personalizados)
+Está estrictamente prohibido invocar alertas nativas (`alert()`) o generar respuestas genéricas que expongan IDs numéricos internos del motor hacia el cliente. Todo feedback de éxito debe ser humanizado y contextualizado utilizando las propiedades de identidad del objeto afectado:
+- **Altas/Registros Exitosos:** El mensaje debe celebrar la acción incluyendo el nombre propio (ej: `¡Usuario ${usuario.Nombre} registrado correctamente!`).
+- **Cambios de Estado Lógico (Toggle Status):** Debe mapear explícitamente el bit resultante para conjugar el verbo adecuado (ej, si pasa a Activo: `"Se ha activado el usuario ${usuario.Nombre} exitosamente."` | si pasa a Inactivo: `"Se ha desactivado el usuario ${usuario.Nombre} de la plataforma."`).
+- **Modificaciones de Atributos/Roles:** Debe traducir el ID técnico a la etiqueta comercial legible por el usuario antes de disparar la notificación (ej: `"Se ha cambiado el rol de ${usuario.Nombre} a ${nombreRolComercial}."`).
+- **Ubicación y Estilo:** Los Toasts de éxito (verdes) o error (rojos) deben renderizarse de forma asíncrona exclusivamente en la esquina inferior derecha, respetando la línea gráfica del colegio.
+
+---
+
+## 6. Centralización de Estilos, Responsividad y Modo Oscuro
+- **Gobernanza de Color (Tokens de UI):** Queda prohibido hardcodear códigos de color hexadecimales directamente en los componentes. Los colores, contrastes y acentos visuales deben mapearse y heredarse directamente desde el archivo centralizador `frontend/src/theme/designTokens.ts`.
+- **Soporte Adaptativo Inteligente (Modo Oscuro):** Todo componente visual nuevo o refactorizado debe incluir obligatoriamente sus variantes cromáticas para el Modo Oscuro utilizando el prefijo `dark:` de Tailwind CSS v4, respondiendo en tiempo real a las preferencias del sistema operativo del dispositivo.
+- **Diseño Líquido y Responsivo:** Todo layout de visualización debe estructurarse con un enfoque móvil primero (`mobile-first`), empleando cajas flexibles (`Flexbox`) responsivas o mallas (`Grid`) adaptativas configuradas mediante breakpoints estandarizados (`sm:`, `md:`, `lg:`).

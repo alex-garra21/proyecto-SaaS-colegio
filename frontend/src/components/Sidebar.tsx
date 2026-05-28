@@ -9,7 +9,8 @@ import {
   LogOut,
   HelpCircle,
   Settings,
-  GraduationCap
+  GraduationCap,
+  Users
 } from 'lucide-react';
 
 type SidebarProps = {
@@ -38,6 +39,12 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           label: 'Bitácoras',
           icon: FileText,
           description: 'Auditoría Transaccional'
+        },
+        {
+          id: 'usuarios',
+          label: 'Gestión de Usuarios',
+          icon: Users,
+          description: 'Control de Cuentas'
         }
       );
     } else if (role === 3) {

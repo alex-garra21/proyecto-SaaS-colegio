@@ -3,18 +3,16 @@ import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Login from './modules/Public/Login';
+import Usuarios from './modules/Admin/Usuarios';
+import Backups from './modules/Admin/Backups';
 import {
-  Database,
   CheckSquare,
-  ShieldCheck,
   AlertTriangle,
   Search,
   CheckCircle,
   Settings,
   Bell,
   Sparkles,
-  Info,
-  Calendar,
   AlertCircle
 } from 'lucide-react';
 
@@ -38,62 +36,6 @@ export default function App() {
   }, [isAuthenticated, user]);
 
   // --- ENLACES Y ESTADOS REALES DE BASE DE DATOS (CONEXIÓN SQL SERVER) ---
-  
-  // 1. Módulo Backups: Estados e integración real
-  const [backupPath, setBackupPath] = useState('C:\\SIGE\\Backups\\');
-  const [backupLogs, setBackupLogs] = useState<string[]>([]);
-  const [isGeneratingBackup, setIsGeneratingBackup] = useState(false);
-  const [backupHistory, setBackupHistory] = useState([
-    { id: 1, fecha: new Date().toISOString().substring(0, 10) + ' 10:15:00', ruta: 'C:\\SIGE\\Backups\\SIGE_Backup_Auto.bak', size: '24.8 MB', estado: 'Completado' }
-  ]);
-
-  const handleGenerateBackup = async () => {
-    setIsGeneratingBackup(true);
-    setBackupLogs([`[${new Date().toLocaleTimeString()}] [INFO] Iniciando conexión con base de datos local 'SistemaColegio'...`]);
-    
-    try {
-      const res = await fetch('http://localhost:4000/api/admin/backups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rutaCarpeta: backupPath }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData?.error || errData?.message || 'Error al ejecutar backup');
-      }
-
-      const data = await res.json();
-      
-      setBackupLogs(prev => [
-        ...prev,
-        `[${new Date().toLocaleTimeString()}] [INFO] Autenticado con privilegios db_owner en SQL Server...`,
-        `[${new Date().toLocaleTimeString()}] [INFO] Invocando stored procedure: sp_GenerarBackupCompleto...`,
-        `[${new Date().toLocaleTimeString()}] [SUCCESS] ${data.message}`,
-        `[${new Date().toLocaleTimeString()}] [SUCCESS] Archivo de respaldo guardado físicamente con éxito.`
-      ]);
-
-      // Refrescar historial
-      setBackupHistory(prev => [
-        {
-          id: Date.now(),
-          fecha: new Date().toISOString().replace('T', ' ').substring(0, 19),
-          ruta: `${backupPath}SIGE_Backup_${Date.now()}.bak`,
-          size: '24.8 MB',
-          estado: 'Completado'
-        },
-        ...prev
-      ]);
-    } catch (err: any) {
-      setBackupLogs(prev => [
-        ...prev,
-        `[${new Date().toLocaleTimeString()}] [ERROR] Falló la ejecución física en SQL Server.`,
-        `[${new Date().toLocaleTimeString()}] [ERROR] Detalle: ${err.message}`
-      ]);
-    } finally {
-      setIsGeneratingBackup(false);
-    }
-  };
 
   // 2. Módulo Bitácora: Cargar datos auténticos de SQL Server
   const [bitacorasList, setBitacorasList] = useState<any[]>([]);
@@ -127,6 +69,8 @@ export default function App() {
       fetchBitacoras();
     }
   }, [isAuthenticated, user, activeTab]);
+
+
 
   const filteredBitacora = bitacorasList.filter(b => {
     const usuarioStr = b.Usuario || 'Sistema/Trigger';
@@ -254,6 +198,16 @@ export default function App() {
                 Bitácoras
               </button>
             )}
+            {user?.idRol === 1 && (
+              <button
+                onClick={() => setActiveTab('usuarios')}
+                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
+                  activeTab === 'usuarios' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
+                }`}
+              >
+                Gestión de Usuarios
+              </button>
+            )}
             {(user?.idRol === 4 || user?.idRol === 5) && (
               <button
                 onClick={() => setActiveTab('ia-metrics')}
@@ -294,192 +248,7 @@ export default function App() {
           {/* TAB 1: MÓDULO DE BACKUPS (ADMIN: ROL 1) */}
           {activeTab === 'backups' && (
             <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab('backups')}>
-              <div className="space-y-6">
-                
-                {/* Cabecera del Módulo */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-                      Módulo de Backups
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Respaldo físico completo de la base de datos <code className="font-mono text-[10px] bg-slate-100 px-1 py-0.5 rounded">SistemaColegio</code>.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-white border border-slate-100 rounded-lg px-3 py-1.5 shadow-sm">
-                    <Calendar size={14} className="text-slate-400" />
-                    <span>Lunes, 26 de Mayo, 2026</span>
-                  </div>
-                </div>
-
-                {/* Grid Adaptable al Diseño del Ejemplo */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  
-                  {/* Columna Principal Izquierda (2/3 de ancho) */}
-                  <div className="lg:col-span-2 space-y-6">
-                    {/* Tarjeta de Formulario de Generación */}
-                    <div className="rounded-xl bg-white border border-slate-100 p-5 shadow-sm space-y-4">
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-50">
-                        Parámetros de Ejecución Física (sp_GenerarBackupCompleto)
-                      </h3>
-
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                            Ruta de Escritura Local (Motor SQL)
-                          </label>
-                          <input
-                            type="text"
-                            value={backupPath}
-                            onChange={(e) => setBackupPath(e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-3 text-xs font-mono text-slate-800 focus:border-slate-950 focus:bg-white focus:outline-none"
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-400 leading-normal flex items-start gap-1">
-                          <Info size={12} className="text-slate-400 shrink-0 mt-0.5" />
-                          <span>El procedimiento almacenado guardará un archivo de extensión <code className="font-mono text-[9px] bg-slate-50 p-0.5 rounded">.bak</code> en la ruta física configurada directamente dentro del servidor.</span>
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={handleGenerateBackup}
-                        disabled={isGeneratingBackup || !backupPath.trim()}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer"
-                      >
-                        <Database size={14} />
-                        {isGeneratingBackup ? 'Generando Archivo Físico...' : 'Ejecutar sp_GenerarBackupCompleto'}
-                      </button>
-                    </div>
-
-                    {/* Consola de Logs del SP en SQL Server */}
-                    <div className="rounded-xl bg-slate-950 p-5 shadow-lg border border-slate-800 flex flex-col h-60">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3 shrink-0">
-                        <span className="text-[9px] font-bold uppercase tracking-wider font-mono text-slate-400">
-                          Salida Estándar de la Transacción
-                        </span>
-                        <span className="text-[9px] text-slate-600 font-mono">3FN OLTP Engine</span>
-                      </div>
-                      <div className="flex-1 overflow-y-auto space-y-1 text-[9px] font-mono text-slate-300 leading-relaxed scrollbar-thin">
-                        {backupLogs.length === 0 ? (
-                          <div className="flex h-full items-center justify-center text-slate-600 italic select-none">
-                            Consola inactiva. Lanza el respaldo físico para monitorizar la ejecución en el motor.
-                          </div>
-                        ) : (
-                          backupLogs.map((log, idx) => (
-                            <div
-                              key={idx}
-                              className={
-                                log.includes('[SUCCESS]')
-                                  ? 'text-emerald-400 font-semibold'
-                                  : log.includes('[ERROR]')
-                                  ? 'text-red-400 font-semibold'
-                                  : 'text-slate-300'
-                              }
-                            >
-                              {log}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Columna Lateral Derecha (1/3 de ancho - Fiel a Live Attendance Stats) */}
-                  <div className="lg:col-span-1 space-y-6">
-                    {/* Tarjeta de Estadísticas de Servidor (Estilo Live Attendance Stats) */}
-                    <div className="rounded-xl bg-slate-950 p-5 shadow-xl text-white space-y-5">
-                      <div>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                          Estado del Motor Local
-                        </span>
-                        <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1 leading-none">
-                          99.98%
-                        </h2>
-                        <span className="text-[9px] text-emerald-400 font-bold block mt-1">Uptime del Servidor SQL</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 border-t border-slate-800 pt-4 text-left">
-                        <div>
-                          <span className="block text-[9px] uppercase tracking-wide text-slate-500">BD Físico</span>
-                          <span className="text-xs font-bold text-slate-200">SistemaColegio</span>
-                        </div>
-                        <div>
-                          <span className="block text-[9px] uppercase tracking-wide text-slate-500">Backup Size</span>
-                          <span className="text-xs font-bold text-slate-200">24.8 MB</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Curator Insights (Widgets de sugerencias) */}
-                    <div className="rounded-xl bg-white border border-slate-100 p-5 shadow-sm space-y-3.5">
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-50">
-                        Monitoreo del Servidor
-                      </h3>
-
-                      <div className="space-y-3">
-                        <div className="flex gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-100/60">
-                          <ShieldCheck className="text-emerald-500 shrink-0 mt-0.5" size={15} />
-                          <div>
-                            <h4 className="text-[10px] font-bold text-slate-900">Uso de Roles Nativos:</h4>
-                            <p className="text-[9px] text-slate-500 leading-normal mt-0.5">
-                              Conexión bajo privilegios exclusivos de <code className="font-mono text-[8px] bg-white border border-slate-100 rounded px-0.5">AdminRole</code>.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-100/60">
-                          <CheckCircle className="text-indigo-500 shrink-0 mt-0.5" size={15} />
-                          <div>
-                            <h4 className="text-[10px] font-bold text-slate-900">Consulta Monitoreada:</h4>
-                            <p className="text-[9px] text-slate-500 leading-normal mt-0.5">
-                              Registro en vivo de telemetría y tiempos de ejecución del motor local.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Historial en la base (ancho total) */}
-                <div className="rounded-xl bg-white border border-slate-100 shadow-sm overflow-hidden">
-                  <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="text-[10px] font-bold text-slate-950 uppercase tracking-wider">
-                      Historial de Respaldos Físicos Guardados
-                    </h3>
-                    <span className="inline-flex items-center gap-1 rounded bg-slate-950 text-[9px] px-2 py-0.5 text-white font-bold">
-                      Servidor SQL Activo
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px] border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
-                          <th className="py-2.5 px-5">Fecha Respaldo</th>
-                          <th className="py-2.5 px-5">Ruta Física Generada</th>
-                          <th className="py-2.5 px-5">Tamaño</th>
-                          <th className="py-2.5 px-5">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-600">
-                        {backupHistory.map((hist) => (
-                          <tr key={hist.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-3 px-5 font-medium text-slate-900 font-mono">{hist.fecha}</td>
-                            <td className="py-3 px-5 font-mono text-slate-500 break-all">{hist.ruta}</td>
-                            <td className="py-3 px-5 text-slate-500">{hist.size}</td>
-                            <td className="py-3 px-5">
-                              <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">
-                                <span className="h-1 w-1 rounded-full bg-emerald-500"></span>
-                                {hist.estado}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+              <Backups />
             </ProtectedRoute>
           )}
 
@@ -640,6 +409,13 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            </ProtectedRoute>
+          )}
+
+          {/* TAB 2.5: GESTIÓN DE USUARIOS (ADMIN: ROL 1) */}
+          {activeTab === 'usuarios' && (
+            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab('backups')}>
+              <Usuarios />
             </ProtectedRoute>
           )}
 
