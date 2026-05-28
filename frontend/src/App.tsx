@@ -6,6 +6,7 @@ import Login from './modules/Public/Login';
 import StudentAdventureModule from './modules/StudentAdventureModule';
 import Usuarios from './modules/Admin/Usuarios';
 import Backups from './modules/Admin/Backups';
+import AdminTeachersModule from './modules/Admin/AdminTeachersModule';
 import {
   CheckSquare,
   AlertTriangle,
@@ -25,7 +26,7 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated && user) {
       if (user.idRol === 1) {
-        setActiveTab('backups');
+        setActiveTab('admin-profesores');
       } else if (user.idRol === 3) {
         setActiveTab('calificaciones');
       } else if (user.idRol === 4 || user.idRol === 5) {
@@ -185,15 +186,25 @@ export default function App() {
           {/* Menú de Sub-rutas secundario (Central, estilo del ejemplo) */}
           <div className="hidden md:flex items-center gap-6 text-[11px] font-semibold text-slate-500">
             <button
-              onClick={() => setActiveTab(user?.idRol === 1 ? 'backups' : user?.idRol === 3 ? 'calificaciones' : 'aventura-kids')}
+              onClick={() => setActiveTab(user?.idRol === 1 ? 'admin-profesores' : user?.idRol === 3 ? 'calificaciones' : 'aventura-kids')}
               className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                ['backups', 'calificaciones', 'aventura-kids'].includes(activeTab)
+                ['admin-profesores', 'calificaciones', 'aventura-kids'].includes(activeTab)
                   ? 'text-slate-950 border-b-2 border-slate-950 font-bold'
                   : ''
               }`}
             >
               Vista Principal
             </button>
+            {user?.idRol === 1 && (
+              <button
+                onClick={() => setActiveTab('backups')}
+                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
+                  activeTab === 'backups' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
+                }`}
+              >
+                Backups
+              </button>
+            )}
             {user?.idRol === 1 && (
               <button
                 onClick={() => setActiveTab('bitacoras')}
@@ -265,6 +276,13 @@ export default function App() {
           {activeTab === 'backups' && (
             <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab('backups')}>
               <Backups />
+            </ProtectedRoute>
+          )}
+
+          {/* TAB 1B: ADMINISTRACION DE PROFESORES (ADMIN: ROL 1) */}
+          {activeTab === 'admin-profesores' && (
+            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab('admin-profesores')}>
+              <AdminTeachersModule />
             </ProtectedRoute>
           )}
 
