@@ -1,35 +1,42 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Award,
+  Bell,
   BookOpen,
+  CalendarDays,
   CheckCircle2,
+  ChevronRight,
   Clock,
   Flame,
+  GraduationCap,
+  Home,
   Library,
   Medal,
   Palette,
   PlayCircle,
+  Settings,
   Sparkles,
   Star,
   Trophy,
+  UserRound,
 } from 'lucide-react';
 
-type AdventureSection = 'inicio' | 'cursos' | 'calendario' | 'tareas' | 'logros' | 'biblioteca';
+type StudentPage = 'inicio' | 'cursos' | 'calendario' | 'notas' | 'tareas' | 'logros' | 'biblioteca' | 'ajustes';
 
-const sections: Array<{ id: AdventureSection; label: string }> = [
-  { id: 'inicio', label: 'Inicio' },
-  { id: 'cursos', label: 'Cursos' },
-  { id: 'calendario', label: 'Calendario' },
-  { id: 'tareas', label: 'Tareas' },
-  { id: 'logros', label: 'Logros' },
-  { id: 'biblioteca', label: 'Biblioteca' },
+const navItems: Array<{ id: StudentPage; label: string; icon: ReactNode }> = [
+  { id: 'inicio', label: 'Inicio', icon: <Home size={20} /> },
+  { id: 'cursos', label: 'Mis Cursos', icon: <GraduationCap size={20} /> },
+  { id: 'calendario', label: 'Calendario', icon: <CalendarDays size={20} /> },
+  { id: 'logros', label: 'Logros', icon: <Trophy size={20} /> },
+  { id: 'biblioteca', label: 'Biblioteca', icon: <Library size={20} /> },
+  { id: 'ajustes', label: 'Ajustes', icon: <Settings size={20} /> },
 ];
 
 const courses = [
-  { name: 'Matematicas', teacher: 'Profe Ana', progress: 78, icon: Sparkles, color: 'bg-blue-600' },
-  { name: 'Lectura', teacher: 'Profe Marcos', progress: 62, icon: BookOpen, color: 'bg-emerald-500' },
-  { name: 'Ciencias', teacher: 'Profe Laura', progress: 84, icon: Flame, color: 'bg-orange-500' },
-  { name: 'Arte', teacher: 'Profe Sofia', progress: 45, icon: Palette, color: 'bg-violet-600' },
+  { name: 'Matematicas', teacher: 'Profe Ana', progress: 78, color: '#0c70ea', icon: <Sparkles size={24} />, action: 'Resolver reto' },
+  { name: 'Lectura', teacher: 'Profe Marcos', progress: 62, color: '#00873b', icon: <BookOpen size={24} />, action: 'Leer cuento' },
+  { name: 'Ciencias', teacher: 'Profe Laura', progress: 84, color: '#a65900', icon: <Flame size={24} />, action: 'Ver experimento' },
+  { name: 'Arte', teacher: 'Profe Sofia', progress: 45, color: '#735c00', icon: <Palette size={24} />, action: 'Subir dibujo' },
 ];
 
 const tasks = [
@@ -38,11 +45,18 @@ const tasks = [
   { title: 'Diario del experimento de plantas', course: 'Ciencias', due: 'Viernes', points: 30, status: 'Nuevo' },
 ];
 
+const grades = [
+  { course: 'Matematicas', grade: 92, note: 'Excelente resolucion de problemas' },
+  { course: 'Lectura', grade: 88, note: 'Buen ritmo y comprension' },
+  { course: 'Ciencias', grade: 94, note: 'Muy buena observacion' },
+  { course: 'Arte', grade: 85, note: 'Sigue practicando composicion' },
+];
+
 const achievements = [
-  { title: 'Racha de 5 dias', text: 'Entro a clase toda la semana.', icon: Flame, unlocked: true },
-  { title: 'Lector curioso', text: 'Termino 3 lecturas del mes.', icon: BookOpen, unlocked: true },
-  { title: 'Mente matematica', text: 'Completa 10 retos numericos.', icon: Medal, unlocked: false },
-  { title: 'Explorador de ciencias', text: 'Entrega 4 actividades practicas.', icon: Award, unlocked: false },
+  { title: 'Racha de 5 dias', text: 'Entraste a clase toda la semana.', icon: <Flame size={28} />, unlocked: true },
+  { title: 'Lector curioso', text: 'Terminaste 3 lecturas del mes.', icon: <BookOpen size={28} />, unlocked: true },
+  { title: 'Mente matematica', text: 'Completa 10 retos numericos.', icon: <Medal size={28} />, unlocked: false },
+  { title: 'Explorador de ciencias', text: 'Entrega 4 actividades practicas.', icon: <Award size={28} />, unlocked: false },
 ];
 
 const resources = [
@@ -52,250 +66,347 @@ const resources = [
   { title: 'Atlas de animales', type: 'Libro digital', minutes: 20 },
 ];
 
-const calendarEvents = [
-  { day: '04', title: 'Clase de Matematicas', tag: 'Clase' },
-  { day: '10', title: 'Lectura guiada', tag: 'Lectura' },
-  { day: '16', title: 'Entrega de proyecto', tag: 'Proyecto' },
-  { day: '24', title: 'Reto de ciencias', tag: 'Reto' },
-];
+const pageToNav: Record<StudentPage, StudentPage> = {
+  inicio: 'inicio',
+  cursos: 'cursos',
+  calendario: 'calendario',
+  notas: 'cursos',
+  tareas: 'cursos',
+  logros: 'logros',
+  biblioteca: 'biblioteca',
+  ajustes: 'ajustes',
+};
 
 export default function StudentAdventureModule() {
-  const [activeSection, setActiveSection] = useState<AdventureSection>('inicio');
-  const average = useMemo(() => Math.round((92 + 88 + 94 + 85) / 4), []);
+  const [page, setPage] = useState<StudentPage>('inicio');
+  const [name, setName] = useState('Leo');
+  const [interests, setInterests] = useState(['Lectura', 'Ciencias']);
+  const average = useMemo(() => Math.round(grades.reduce((sum, item) => sum + item.grade, 0) / grades.length), []);
+
+  const goTo = (nextPage: StudentPage) => setPage(nextPage);
+  const toggleInterest = (interest: string) => {
+    setInterests((current) =>
+      current.includes(interest) ? current.filter((item) => item !== interest) : [...current, interest],
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-        <div className="grid gap-6 bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-6 md:grid-cols-[1fr_220px] md:p-8">
-          <div className="max-w-3xl">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-blue-700">
-              Portal de alumno
+    <div className="ak-shell -m-8 min-h-[calc(100vh-4rem)] bg-[#f8f9ff] text-[#151c26]">
+      <header className="sticky top-0 z-20 flex min-h-[88px] items-center justify-between border-b border-[#dce3f1] bg-[#f8f9ff]/95 px-6 backdrop-blur md:px-10">
+        <button className="text-left" onClick={() => goTo('inicio')}>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#0058bd]">Portal de alumno</p>
+          <h1 className="mt-1 text-4xl font-black tracking-normal text-[#0058bd]">Aventura Kids</h1>
+        </button>
+        <div className="flex items-center gap-3">
+          <button className="grid h-11 w-11 place-items-center rounded-full bg-[#eff4ff] text-[#0058bd]" onClick={() => goTo('inicio')} title="Notificaciones">
+            <Bell size={20} />
+          </button>
+          <button className="grid h-11 w-11 place-items-center rounded-full bg-[#eff4ff] text-[#0058bd]" onClick={() => goTo('logros')} title="Mis estrellas">
+            <Star size={20} />
+          </button>
+          <button className="hidden min-h-11 items-center gap-2 rounded-full bg-[#eff4ff] py-1 pl-1 pr-4 text-sm font-black text-[#0058bd] md:flex" onClick={() => goTo('ajustes')}>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#0c70ea] text-white">{name.slice(0, 1)}</span>
+            Hola, {name}
+          </button>
+        </div>
+      </header>
+
+      <div className="grid md:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="sticky top-[88px] hidden h-[calc(100vh-88px)] flex-col gap-4 border-r border-[#dce3f1] bg-white p-4 md:flex">
+          <div className="flex items-center gap-3 rounded-2xl border border-[#f3df82] bg-[#fff8d7] p-4">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-[#fdd029] text-[#5a4300]">
+              <Trophy size={24} />
             </span>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-blue-700 md:text-5xl">
-              Aventura Kids
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600 md:text-base">
-              Continua tus cursos, revisa tus tareas y gana estrellas por cada reto completado en una vista pensada para alumnos.
-            </p>
-            <button
-              onClick={() => setActiveSection('tareas')}
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-blue-100 transition hover:bg-blue-800"
-            >
-              <PlayCircle size={16} />
-              Empezar ahora
-            </button>
+            <div>
+              <strong className="block text-[#0058bd]">Explorador</strong>
+              <span className="text-sm font-bold text-[#715a00]">Nivel 5</span>
+            </div>
           </div>
 
-          <div className="flex aspect-square flex-col items-center justify-center rounded-full border-8 border-yellow-300 bg-white text-center shadow-lg md:self-center">
-            <span className="text-5xl font-black leading-none text-blue-700">128</span>
-            <strong className="mt-1 text-sm text-slate-700">estrellas</strong>
-            <small className="mt-1 text-[10px] font-semibold text-slate-400">+18 esta semana</small>
-          </div>
-        </div>
+          <nav className="flex flex-col gap-2">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => goTo(item.id)}
+                className={`flex min-h-12 items-center gap-3 rounded-2xl px-4 text-left text-sm font-black transition ${
+                  pageToNav[page] === item.id
+                    ? 'bg-[#0c70ea] text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.16)]'
+                    : 'text-[#5d6472] hover:bg-[#eff4ff] hover:text-[#0058bd]'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </nav>
 
-        <div className="flex gap-2 overflow-x-auto border-t border-slate-100 bg-white p-3">
-          {sections.map((section) => (
-            <button
-              key={section.id}
-              onClick={() => setActiveSection(section.id)}
-              className={`shrink-0 rounded-xl px-3 py-2 text-[11px] font-bold transition ${
-                activeSection === section.id
-                  ? 'bg-blue-700 text-white shadow-sm'
-                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              {section.label}
-            </button>
-          ))}
-        </div>
-      </section>
+          <button className="mt-auto flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#0058bd] px-4 font-black text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.18)]" onClick={() => goTo('tareas')}>
+            <PlayCircle size={20} />
+            Ir a clase
+          </button>
+        </aside>
 
-      {activeSection === 'inicio' && (
-        <>
-          <div className="grid gap-4 md:grid-cols-4">
-            <MetricCard label="Promedio" value={`${average}%`} icon={Star} />
-            <MetricCard label="Tareas activas" value={String(tasks.length)} icon={Clock} />
-            <MetricCard label="Racha" value="5 dias" icon={Flame} />
-            <MetricCard label="Logros" value="2/4" icon={Trophy} />
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <Panel title="Siguiente actividad">
-              <div className="space-y-3">
-                {tasks.map((task) => (
-                  <button
-                    key={task.title}
-                    onClick={() => setActiveSection('tareas')}
-                    className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50 p-3 text-left transition hover:border-blue-100 hover:bg-blue-50"
-                  >
-                    <div>
-                      <strong className="block text-sm text-slate-900">{task.title}</strong>
-                      <span className="text-xs text-slate-500">{task.course} - {task.due}</span>
-                    </div>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-blue-700">
-                      {task.points} pts
-                    </span>
+        <main className="mx-auto w-full max-w-[1180px] px-4 py-8 pb-28 md:px-10 md:pb-10">
+          {page === 'inicio' && (
+            <div className="space-y-8">
+              <section className="grid min-h-[310px] items-center gap-6 rounded-[2rem] border border-[#dce3f1] bg-[radial-gradient(circle_at_84%_20%,rgba(253,208,41,0.45),transparent_24%),linear-gradient(135deg,#d8e2ff_0%,#f8f9ff_56%,#c8f7d3_100%)] p-8 md:grid-cols-[1fr_220px] md:p-10">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.24em] text-[#5d6472]">Martes de aprendizaje</p>
+                  <h2 className="mt-3 max-w-3xl text-5xl font-black leading-[1.05] tracking-normal text-[#0058bd] md:text-6xl">
+                    Listo para una nueva aventura, {name}?
+                  </h2>
+                  <p className="mt-5 max-w-2xl text-lg leading-7 text-[#5d6472]">
+                    Continua tus cursos, revisa tus tareas y gana estrellas por cada reto completado.
+                  </p>
+                  <button className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-[#0058bd] px-6 font-black text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.18)]" onClick={() => goTo('tareas')}>
+                    Empezar ahora <ChevronRight size={18} />
                   </button>
+                </div>
+                <div className="mx-auto flex aspect-square w-48 flex-col items-center justify-center rounded-full border-8 border-[#fdd029] bg-white text-center shadow-xl">
+                  <span className="text-5xl font-black leading-none text-[#0058bd]">128</span>
+                  <strong className="mt-1 text-[#5d6472]">estrellas</strong>
+                  <small className="mt-1 font-bold text-[#5d6472]">+18 esta semana</small>
+                </div>
+              </section>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricCard label="Promedio" value={`${average}%`} icon={<Star size={22} />} />
+                <MetricCard label="Tareas activas" value={String(tasks.length)} icon={<Clock size={22} />} />
+                <MetricCard label="Racha" value="5 dias" icon={<Flame size={22} />} />
+                <MetricCard label="Logros" value="2/4" icon={<Trophy size={22} />} />
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+                <Panel title="Siguiente actividad" action="Ver calendario" onAction={() => goTo('calendario')}>
+                  <div className="space-y-3">
+                    {tasks.map((task) => (
+                      <button key={task.title} className="flex w-full items-center justify-between gap-4 rounded-2xl bg-[#eff4ff] p-4 text-left transition hover:bg-[#e7eefc]" onClick={() => goTo('tareas')}>
+                        <div>
+                          <strong className="block text-[#151c26]">{task.title}</strong>
+                          <span className="text-sm font-semibold text-[#5d6472]">{task.course} - {task.due}</span>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-sm font-black text-[#0058bd]">{task.points} pts</span>
+                      </button>
+                    ))}
+                  </div>
+                </Panel>
+
+                <Panel title="Cursos destacados" action="Ver cursos" onAction={() => goTo('cursos')}>
+                  <div className="space-y-3">
+                    {courses.slice(0, 3).map((course) => (
+                      <button key={course.name} className="flex w-full items-center gap-3 rounded-2xl bg-[#eff4ff] p-3 text-left" onClick={() => goTo('cursos')}>
+                        <span className="grid h-12 w-12 place-items-center rounded-2xl text-white" style={{ background: course.color }}>{course.icon}</span>
+                        <div>
+                          <strong className="block text-[#151c26]">{course.name}</strong>
+                          <small className="font-bold text-[#5d6472]">{course.progress}% completado</small>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </Panel>
+              </div>
+            </div>
+          )}
+
+          {page === 'cursos' && (
+            <PageFrame title="Mis cursos" subtitle="Tus clases activas, progreso y accesos rapidos.">
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                {courses.map((course) => (
+                  <article key={course.name} className="rounded-[1.75rem] border border-[#dce3f1] bg-white p-6 shadow-sm">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl text-white" style={{ background: course.color }}>{course.icon}</div>
+                    <h3 className="mt-5 text-xl font-black text-[#0058bd]">{course.name}</h3>
+                    <p className="font-bold text-[#5d6472]">{course.teacher}</p>
+                    <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#eff4ff]">
+                      <span className="block h-full rounded-full" style={{ width: `${course.progress}%`, background: course.color }} />
+                    </div>
+                    <div className="mt-4 flex items-center justify-between">
+                      <strong className="text-[#0058bd]">{course.progress}%</strong>
+                      <button className="rounded-full bg-[#0058bd] px-4 py-2 text-sm font-black text-white" onClick={() => goTo('tareas')}>{course.action}</button>
+                    </div>
+                  </article>
                 ))}
               </div>
-            </Panel>
+            </PageFrame>
+          )}
 
-            <Panel title="Explorador">
-              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-yellow-300 text-yellow-950">
-                    <Trophy size={24} />
+          {page === 'calendario' && (
+            <PageFrame title="Calendario" subtitle="Eventos de clase, entregas y retos del mes.">
+              <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+                <Panel title="Junio 2026">
+                  <div className="grid grid-cols-7 gap-2">
+                    {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((day, index) => <strong key={`${day}-${index}`} className="text-center text-sm text-[#5d6472]">{day}</strong>)}
+                    {Array.from({ length: 30 }, (_, index) => index + 1).map((day) => (
+                      <button key={day} className={`aspect-square rounded-full text-sm font-black transition hover:bg-[#eff4ff] ${day === 4 ? 'border-2 border-[#0058bd] text-[#0058bd]' : 'bg-white text-[#151c26]'}`} onClick={() => goTo('tareas')}>
+                        {day}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <strong className="block text-sm text-slate-900">Nivel 5</strong>
-                    <span className="text-xs font-semibold text-slate-500">Siguiente meta: 150 estrellas</span>
+                </Panel>
+                <Panel title="Proximos eventos">
+                  <div className="space-y-3">
+                    {['Clase de Matematicas', 'Lectura guiada', 'Entrega de proyecto'].map((event, index) => (
+                      <button key={event} className="flex w-full items-center gap-3 rounded-2xl bg-[#eff4ff] p-4 text-left" onClick={() => goTo('tareas')}>
+                        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#0058bd] font-black text-white">{[4, 10, 16][index]}</span>
+                        <div>
+                          <strong className="block">{event}</strong>
+                          <small className="font-bold text-[#5d6472]">{index === 0 ? 'Hoy' : index === 1 ? 'Manana' : 'Junio'}</small>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </div>
+                </Panel>
               </div>
-            </Panel>
-          </div>
-        </>
-      )}
+            </PageFrame>
+          )}
 
-      {activeSection === 'cursos' && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {courses.map((course) => {
-            const Icon = course.icon;
-            return (
-              <article key={course.name} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <div className={`grid h-12 w-12 place-items-center rounded-xl text-white ${course.color}`}>
-                  <Icon size={22} />
+          {page === 'notas' && (
+            <PageFrame title="Mis notas" subtitle="Resumen academico por curso.">
+              <div className="mb-5 flex items-center justify-between gap-4 rounded-[1.75rem] bg-[#0058bd] p-6 text-white">
+                <div>
+                  <span className="block text-5xl font-black leading-none">{average}%</span>
+                  <strong>Promedio general</strong>
                 </div>
-                <h3 className="mt-4 text-base font-extrabold text-slate-900">{course.name}</h3>
-                <p className="text-xs font-semibold text-slate-400">{course.teacher}</p>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div className={`h-full rounded-full ${course.color}`} style={{ width: `${course.progress}%` }} />
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs">
-                  <strong className="text-slate-900">{course.progress}%</strong>
-                  <button onClick={() => setActiveSection('tareas')} className="font-bold text-blue-700">
-                    Continuar
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      {activeSection === 'calendario' && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <Panel title="Junio 2026">
-            <div className="grid grid-cols-7 gap-2">
-              {Array.from({ length: 30 }, (_, index) => index + 1).map((day) => (
-                <button
-                  key={day}
-                  onClick={() => setActiveSection('tareas')}
-                  className={`aspect-square rounded-full text-xs font-bold transition hover:bg-blue-50 ${
-                    day === 4 ? 'border-2 border-blue-700 text-blue-700' : 'bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  {day}
-                </button>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="Proximos eventos">
-            <div className="space-y-3">
-              {calendarEvents.map((event) => (
-                <div key={event.title} className="flex gap-3 rounded-xl bg-slate-50 p-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-blue-700 text-xs font-black text-white">
-                    {event.day}
-                  </div>
-                  <div>
-                    <strong className="block text-sm text-slate-900">{event.title}</strong>
-                    <span className="text-xs font-semibold text-slate-400">{event.tag}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
-      )}
-
-      {activeSection === 'tareas' && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          {tasks.map((task) => (
-            <article key={task.title} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-700">
-                <Clock size={13} />
-                {task.status}
-              </span>
-              <h3 className="mt-4 text-base font-extrabold text-slate-900">{task.title}</h3>
-              <p className="mt-1 text-xs font-semibold text-slate-400">{task.course}</p>
-              <div className="mt-5 flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-500">{task.due}</span>
-                <button className="rounded-lg bg-slate-950 px-3 py-2 font-bold text-white">Continuar</button>
+                <button className="rounded-full bg-white/15 px-5 py-3 font-black" onClick={() => goTo('logros')}>Ver logros</button>
               </div>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {activeSection === 'logros' && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {achievements.map((achievement) => {
-            const Icon = achievement.icon;
-            return (
-              <article key={achievement.title} className="rounded-2xl border border-slate-100 bg-white p-5 text-center shadow-sm">
-                <div className={`mx-auto grid h-14 w-14 place-items-center rounded-full ${achievement.unlocked ? 'bg-yellow-300 text-yellow-950' : 'bg-slate-100 text-slate-400'}`}>
-                  <Icon size={26} />
-                </div>
-                <h3 className="mt-4 text-sm font-extrabold text-slate-900">{achievement.title}</h3>
-                <p className="mt-2 min-h-10 text-xs text-slate-500">{achievement.text}</p>
-                <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-blue-700">
-                  <CheckCircle2 size={13} />
-                  {achievement.unlocked ? 'Desbloqueado' : 'Bloqueado'}
-                </span>
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      {activeSection === 'biblioteca' && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {resources.map((resource) => (
-            <article key={resource.title} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <div className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-blue-700">
-                <Library size={22} />
+              <div className="space-y-3">
+                {grades.map((grade) => (
+                  <article key={grade.course} className="flex items-center justify-between rounded-2xl border border-[#dce3f1] bg-white p-4">
+                    <div>
+                      <strong className="block">{grade.course}</strong>
+                      <span className="font-semibold text-[#5d6472]">{grade.note}</span>
+                    </div>
+                    <b className="text-2xl text-[#0058bd]">{grade.grade}</b>
+                  </article>
+                ))}
               </div>
-              <h3 className="mt-4 text-base font-extrabold text-slate-900">{resource.title}</h3>
-              <p className="text-xs font-semibold text-slate-400">{resource.type}</p>
-              <span className="mt-3 block text-xs font-black text-slate-600">{resource.minutes} min</span>
-              <button className="mt-4 w-full rounded-xl bg-blue-700 px-3 py-2.5 text-xs font-bold text-white">
-                Abrir recurso
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
+            </PageFrame>
+          )}
+
+          {page === 'tareas' && (
+            <PageFrame title="Centro de tareas" subtitle="Actividades por entregar y recursos para completar clase.">
+              <div className="mb-5 flex flex-col justify-between gap-4 rounded-[1.75rem] border border-[#f3df82] bg-[#fff8d7] p-6 md:flex-row md:items-center">
+                <div>
+                  <h3 className="text-2xl font-black text-[#5a4300]">2 tareas en progreso</h3>
+                  <p className="font-semibold text-[#715a00]">Completa actividades para sumar estrellas.</p>
+                </div>
+                <button className="rounded-full bg-[#0058bd] px-5 py-3 font-black text-white" onClick={() => goTo('logros')}>Ver recompensas</button>
+              </div>
+              <div className="grid gap-5 lg:grid-cols-3">
+                {tasks.map((task) => (
+                  <article key={task.title} className="rounded-[1.75rem] border border-[#dce3f1] bg-white p-6">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#eff4ff] px-3 py-1 text-sm font-black text-[#0058bd]"><Clock size={16} />{task.status}</span>
+                    <h3 className="mt-5 text-xl font-black text-[#0058bd]">{task.title}</h3>
+                    <p className="font-bold text-[#5d6472]">{task.course}</p>
+                    <div className="mt-6 flex items-center justify-between">
+                      <span className="font-black text-[#5d6472]">{task.due}</span>
+                      <button className="rounded-full bg-[#0058bd] px-4 py-2 font-black text-white">Continuar</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </PageFrame>
+          )}
+
+          {page === 'logros' && (
+            <PageFrame title="Logros" subtitle="Insignias, estrellas y progreso de explorador.">
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                {achievements.map((achievement) => (
+                  <article key={achievement.title} className="rounded-[1.75rem] border border-[#dce3f1] bg-white p-6 text-center">
+                    <div className={`mx-auto grid h-16 w-16 place-items-center rounded-full ${achievement.unlocked ? 'bg-[#fdd029] text-[#5a4300]' : 'bg-[#eff4ff] text-[#5d6472]'}`}>{achievement.icon}</div>
+                    <h3 className="mt-4 text-lg font-black text-[#0058bd]">{achievement.title}</h3>
+                    <p className="mt-2 min-h-12 font-semibold text-[#5d6472]">{achievement.text}</p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-black text-[#0058bd]"><CheckCircle2 size={16} />{achievement.unlocked ? 'Desbloqueado' : 'Bloqueado'}</span>
+                  </article>
+                ))}
+              </div>
+            </PageFrame>
+          )}
+
+          {page === 'biblioteca' && (
+            <PageFrame title="Biblioteca" subtitle="Lecturas, videos y guias recomendadas para ti.">
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                {resources.map((resource) => (
+                  <article key={resource.title} className="rounded-[1.75rem] border border-[#dce3f1] bg-white p-6">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#eff4ff] text-[#0058bd]"><BookOpen size={24} /></div>
+                    <h3 className="mt-5 text-xl font-black text-[#0058bd]">{resource.title}</h3>
+                    <p className="font-bold text-[#5d6472]">{resource.type}</p>
+                    <span className="mt-3 block font-black text-[#5d6472]">{resource.minutes} min</span>
+                    <button className="mt-5 w-full rounded-full bg-[#0058bd] px-4 py-3 font-black text-white" onClick={() => goTo('tareas')}>Abrir recurso</button>
+                  </article>
+                ))}
+              </div>
+            </PageFrame>
+          )}
+
+          {page === 'ajustes' && (
+            <PageFrame title="Ajustes de perfil" subtitle="Personaliza tu portal de aprendizaje.">
+              <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+                <Panel title="Perfil">
+                  <div className="flex items-center gap-4">
+                    <UserRound size={86} className="text-[#0058bd]" />
+                    <label className="flex-1 font-black text-[#5d6472]">
+                      Nombre visible
+                      <input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-2xl border border-[#dce3f1] bg-white px-4 py-3 font-semibold text-[#151c26] outline-none focus:border-[#0058bd]" />
+                    </label>
+                  </div>
+                </Panel>
+                <Panel title="Intereses">
+                  <div className="flex flex-wrap gap-3">
+                    {['Lectura', 'Ciencias', 'Arte', 'Matematicas', 'Musica', 'Deportes'].map((interest) => (
+                      <button key={interest} className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 font-black ${interests.includes(interest) ? 'bg-[#0058bd] text-white' : 'bg-[#eff4ff] text-[#5d6472]'}`} onClick={() => toggleInterest(interest)}>
+                        <CheckCircle2 size={16} />
+                        {interest}
+                      </button>
+                    ))}
+                  </div>
+                </Panel>
+              </div>
+            </PageFrame>
+          )}
+        </main>
+      </div>
+
+      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 gap-1 border-t border-[#dce3f1] bg-white p-2 md:hidden">
+        {navItems.filter((item) => item.id !== 'calendario').map((item) => (
+          <button key={item.id} className={`flex flex-col items-center justify-center gap-1 rounded-2xl py-2 text-[11px] font-black ${pageToNav[page] === item.id ? 'bg-[#eff4ff] text-[#0058bd]' : 'text-[#5d6472]'}`} onClick={() => goTo(item.id)}>
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
 
-function MetricCard({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Star }) {
+function MetricCard({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
-    <article className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-blue-700">
-        <Icon size={21} />
-      </div>
-      <span className="mt-4 block text-xs font-semibold text-slate-400">{label}</span>
-      <strong className="mt-1 block text-2xl font-black text-blue-700">{value}</strong>
+    <article className="rounded-[1.75rem] border border-[#dce3f1] bg-white p-5 shadow-sm">
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#eff4ff] text-[#0058bd]">{icon}</div>
+      <span className="mt-5 block font-semibold text-[#5d6472]">{label}</span>
+      <strong className="block text-3xl font-black text-[#0058bd]">{value}</strong>
     </article>
   );
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({ title, action, onAction, children }: { title: string; action?: string; onAction?: () => void; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-slate-900">{title}</h2>
+    <section className="rounded-[1.75rem] border border-[#dce3f1] bg-white p-6 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h3 className="text-xl font-black text-[#0058bd]">{title}</h3>
+        {action && <button className="font-black text-[#0058bd]" onClick={onAction}>{action}</button>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PageFrame({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+  return (
+    <section>
+      <header className="mb-6">
+        <h2 className="text-4xl font-black tracking-normal text-[#0058bd]">{title}</h2>
+        <p className="mt-2 text-lg font-semibold text-[#5d6472]">{subtitle}</p>
+      </header>
       {children}
     </section>
   );

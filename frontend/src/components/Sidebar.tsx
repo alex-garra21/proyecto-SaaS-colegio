@@ -7,6 +7,7 @@ import {
   BookOpen,
   Brain,
   Sparkles,
+  UsersRound,
   LogOut,
   HelpCircle,
   Settings,
@@ -31,6 +32,12 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
     if (role === 1) {
       items.push(
+        {
+          id: 'admin-profesores',
+          label: 'Admin Profesores',
+          icon: UsersRound,
+          description: 'Gestion Academica'
+        },
         {
           id: 'backups',
           label: 'Módulo de Backups',
