@@ -20,12 +20,16 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Trash2
+  Trash2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface UserData {
   IdUsuario: number;
-  Nombre: string;
+  NombreCompleto: string;
+  Nombres: string;
+  Apellidos: string;
   Correo: string;
   Estado: boolean;
   FechaRegistro: string;
@@ -49,19 +53,13 @@ export default function Usuarios() {
     if (!userToDeactivate) return;
     
     const userId = userToDeactivate.IdUsuario;
-    const userName = userToDeactivate.Nombre;
+    const userName = userToDeactivate.NombreCompleto;
     
     setIsConfirmModalOpen(false);
     
-    if (!userToDeactivate.Estado) {
-      showToast(`El usuario ${userName} ya se encuentra desactivado.`, 'error');
-      setUserToDeactivate(null);
-      return;
-    }
-    
     try {
-      const res = await fetch(`http://localhost:4000/api/users/${userId}/status`, {
-        method: 'PUT',
+      const res = await fetch(`http://localhost:4000/api/users/${userId}`, {
+        method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -69,7 +67,7 @@ export default function Usuarios() {
 
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData?.message || 'Error al desactivar el usuario.');
+        throw new Error(errData?.message || 'Error al procesar la baja segura del usuario.');
       }
 
       // Actualizar estado en la UI a Inactivo
@@ -77,10 +75,10 @@ export default function Usuarios() {
         prev.map(u => (u.IdUsuario === userId ? { ...u, Estado: false } : u))
       );
 
-      showToast(`Se ha desactivado el usuario ${userName} de la plataforma.`, 'success');
+      showToast(`Se ha desactivado y removido el acceso al usuario ${userName} de la plataforma.`, 'success');
     } catch (err: any) {
       console.error(err);
-      showToast(`Error al desactivar: ${err.message}`, 'error');
+      showToast(`Error al procesar la baja: ${err.message}`, 'error');
     } finally {
       setUserToDeactivate(null);
     }
@@ -91,7 +89,7 @@ export default function Usuarios() {
   const [filterRol, setFilterRol] = useState<number>(0); // 0 = Todos los Roles
   const [filterEstado, setFilterEstado] = useState<number>(0); // 0 = Todos los Estatus
 
-  const [sortField, setSortField] = useState<'IdUsuario' | 'Nombre' | 'NombreRol' | 'FechaRegistro'>('IdUsuario');
+  const [sortField, setSortField] = useState<'IdUsuario' | 'NombreCompleto' | 'NombreRol' | 'FechaRegistro'>('IdUsuario');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,13 +97,16 @@ export default function Usuarios() {
 
   // Estados del modal de agregar usuario
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalName, setModalName] = useState('');
+  const [modalNombres, setModalNombres] = useState('');
+  const [modalApellidos, setModalApellidos] = useState('');
   const [modalEmail, setModalEmail] = useState('');
   const [modalPassword, setModalPassword] = useState('');
+  const [showModalPassword, setShowModalPassword] = useState(false);
   const [modalRol, setModalRol] = useState<number>(3); // Profesor por defecto
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
+  const [rolesList, setRolesList] = useState<{ IdRol: number; NombreRol: string }[]>([]);
 
   // Cargar usuarios desde el backend
   const fetchUsers = async () => {
@@ -139,6 +140,60 @@ export default function Usuarios() {
     }
   }, [token]);
 
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/roles');
+        if (res.ok) {
+          const data = await res.json();
+          setRolesList(data);
+        }
+      } catch (err) {
+        console.error('Error al cargar roles:', err);
+      }
+    };
+    fetchRoles();
+  }, []);
+
+  // Efecto con Debounce de 500ms para Generación Automática de Correo Institucional
+  useEffect(() => {
+    const nombresClean = modalNombres.trim();
+    const apellidosClean = modalApellidos.trim();
+
+    if (!nombresClean || !apellidosClean) {
+      setModalEmail('');
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const queryParams = new URLSearchParams({
+          nombres: nombresClean,
+          apellidos: apellidosClean
+        });
+
+        const res = await fetch(`http://localhost:4000/api/users/generar-correo?${queryParams.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.correoGenerado) {
+            setModalEmail(data.correoGenerado);
+          }
+        } else {
+          console.error('Error al generar correo institucional:', res.statusText);
+        }
+      } catch (err) {
+        console.error('Error de red al generar correo institucional:', err);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [modalNombres, modalApellidos, token]);
+
   // Resetear paginación al alterar filtros
   useEffect(() => {
     setCurrentPage(1);
@@ -152,7 +207,7 @@ export default function Usuarios() {
   const filteredUsers = useMemo(() => {
     return usersList.filter(u => {
       const matchesSearch = 
-        u.Nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        u.NombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) || 
         u.Correo.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesRol = 
@@ -199,7 +254,7 @@ export default function Usuarios() {
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage));
 
   // Manejador del ordenamiento de columnas
-  const handleSort = (field: 'IdUsuario' | 'Nombre' | 'NombreRol' | 'FechaRegistro') => {
+  const handleSort = (field: 'IdUsuario' | 'NombreCompleto' | 'NombreRol' | 'FechaRegistro') => {
     if (sortField === field) {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -208,7 +263,7 @@ export default function Usuarios() {
     }
   };
 
-  const renderSortIcon = (field: 'IdUsuario' | 'Nombre' | 'NombreRol' | 'FechaRegistro') => {
+  const renderSortIcon = (field: 'IdUsuario' | 'NombreCompleto' | 'NombreRol' | 'FechaRegistro') => {
     if (sortField !== field) {
       return <ArrowUpDown size={11} className="ml-1.5 text-slate-400 dark:text-slate-500 inline shrink-0" />;
     }
@@ -243,20 +298,17 @@ export default function Usuarios() {
       }
 
       // Mapeo interno rápido para traducir el ID numérico del rol a su nombre comercial
-      const roleNames: Record<number, string> = {
-        1: 'Administrador',
-        2: 'Personal Académico',
-        3: 'Profesor Docente',
-        4: 'Alumno Regular',
-        5: 'Padre de Familia'
-      };
+      const roleNames: Record<number, string> = {};
+      rolesList.forEach(r => {
+        roleNames[r.IdRol] = r.NombreRol;
+      });
       const nombreDelRol = roleNames[newRolId] || 'Rol';
       const targetUser = usersList.find(u => u.IdUsuario === userId);
-      const userName = targetUser ? targetUser.Nombre : 'Usuario';
+      const userName = targetUser ? targetUser.NombreCompleto : 'Usuario';
 
       // Actualizar el estado local con transiciones suaves
       setUsersList(prev =>
-        prev.map(u => (u.IdUsuario === userId ? { ...u, IdRol: newRolId } : u))
+        prev.map(u => (u.IdUsuario === userId ? { ...u, IdRol: newRolId, NombreRol: nombreDelRol } : u))
       );
       
       showToast(`Se ha cambiado el rol de ${userName} a ${nombreDelRol}.`, 'success');
@@ -277,7 +329,7 @@ export default function Usuarios() {
 
     const targetUser = usersList.find(u => u.IdUsuario === userId);
     if (!targetUser) return;
-    const userName = targetUser.Nombre;
+    const userName = targetUser.NombreCompleto;
     const nextState = !targetUser.Estado;
 
     try {
@@ -313,8 +365,9 @@ export default function Usuarios() {
   // Registrar usuario manual
   const handleAddUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const registeredName = modalName.trim();
-    if (!registeredName || !modalEmail.trim() || !modalPassword || !modalRol) {
+    const registeredNombres = modalNombres.trim();
+    const registeredApellidos = modalApellidos.trim();
+    if (!registeredNombres || !registeredApellidos || !modalEmail.trim() || !modalPassword || !modalRol) {
       setModalError('Todos los campos del formulario son obligatorios.');
       return;
     }
@@ -331,7 +384,8 @@ export default function Usuarios() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          nombre: registeredName,
+          nombres: registeredNombres,
+          apellidos: registeredApellidos,
           correo: modalEmail.trim(),
           password: modalPassword,
           idRol: modalRol
@@ -343,9 +397,11 @@ export default function Usuarios() {
         throw new Error(errData?.message || 'Fallo al registrar el usuario.');
       }
 
-      setModalSuccess(`¡Usuario ${registeredName} registrado correctamente!`);
-      showToast(`¡Usuario ${registeredName} registrado correctamente!`, 'success');
-      setModalName('');
+      const fullname = `${registeredNombres} ${registeredApellidos}`;
+      setModalSuccess(`¡Usuario ${fullname} registrado correctamente!`);
+      showToast(`¡Usuario ${fullname} registrado correctamente!`, 'success');
+      setModalNombres('');
+      setModalApellidos('');
       setModalEmail('');
       setModalPassword('');
       setModalRol(3);
@@ -415,6 +471,7 @@ export default function Usuarios() {
               onRolChange={setFilterRol}
               filterEstado={filterEstado}
               onEstadoChange={setFilterEstado}
+              rolesList={rolesList}
             />
 
             {/* Tabla de Resultados */}
@@ -432,12 +489,12 @@ export default function Usuarios() {
                       </div>
                     </th>
                     <th 
-                      onClick={() => handleSort('Nombre')}
+                      onClick={() => handleSort('NombreCompleto')}
                       className="py-3 px-5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/30 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
                     >
                       <div className="flex items-center">
                         <span>Usuario / Correo</span>
-                        {renderSortIcon('Nombre')}
+                        {renderSortIcon('NombreCompleto')}
                       </div>
                     </th>
                     <th 
@@ -500,7 +557,7 @@ export default function Usuarios() {
                           {/* Usuario / Correo */}
                           <td className="py-3.5 px-5 min-w-[180px]">
                             <span className="block font-semibold text-slate-900 dark:text-slate-200 truncate">
-                               {row.Nombre}
+                               {row.NombreCompleto}
                             </span>
                             <span className="block text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
                               {row.Correo}
@@ -512,19 +569,13 @@ export default function Usuarios() {
                             {isSelf ? (
                               <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-lg px-2.5 py-1.5 w-full select-none cursor-not-allowed">
                                 <ShieldAlert size={12} className="text-slate-400 dark:text-slate-500" />
-                                <span>Administrador (Tú)</span>
+                                <span>{row.NombreRol} (Tú)</span>
                               </div>
                             ) : (
                               <CustomSelect
                                 value={row.IdRol}
                                 onChange={(val) => handleRoleChange(row.IdUsuario, val)}
-                                options={[
-                                  { value: 1, label: 'Administrador' },
-                                  { value: 2, label: 'Personal Académico' },
-                                  { value: 3, label: 'Profesor Docente' },
-                                  { value: 4, label: 'Alumno Regular' },
-                                  { value: 5, label: 'Padre de Familia' }
-                                ]}
+                                options={rolesList.map(rol => ({ value: rol.IdRol, label: rol.NombreRol }))}
                               />
                             )}
                           </td>
@@ -671,7 +722,7 @@ export default function Usuarios() {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              ¿Está seguro de remover el acceso a <span className="font-semibold text-slate-900 dark:text-white">{userToDeactivate.Nombre}</span>?
+              ¿Está seguro de remover el acceso a <span className="font-semibold text-slate-900 dark:text-white">{userToDeactivate.NombreCompleto}</span>?
             </p>
 
             <div className="flex gap-3 justify-end pt-2">
@@ -751,24 +802,46 @@ export default function Usuarios() {
             {/* Formulario */}
             <form onSubmit={handleAddUserSubmit} className="space-y-4">
               
-              {/* Nombre */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
-                  Nombre Completo
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 dark:text-slate-500">
-                    <User size={14} />
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    disabled={modalLoading || !!modalSuccess}
-                    value={modalName}
-                    onChange={(e) => setModalName(e.target.value)}
-                    placeholder="Ej: Alexander Reyes"
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-950 dark:focus:border-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
-                  />
+              {/* Nombres y Apellidos en dos columnas responsivas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+                    Nombres
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 dark:text-slate-500">
+                      <User size={14} />
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      disabled={modalLoading || !!modalSuccess}
+                      value={modalNombres}
+                      onChange={(e) => setModalNombres(e.target.value)}
+                      placeholder="Ej: Alexander"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-955 dark:focus:border-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+                    Apellidos
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 dark:text-slate-500">
+                      <User size={14} />
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      disabled={modalLoading || !!modalSuccess}
+                      value={modalApellidos}
+                      onChange={(e) => setModalApellidos(e.target.value)}
+                      placeholder="Ej: Reyes"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-955 dark:focus:border-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -784,11 +857,10 @@ export default function Usuarios() {
                   <input
                     type="email"
                     required
-                    disabled={modalLoading || !!modalSuccess}
+                    readOnly
                     value={modalEmail}
-                    onChange={(e) => setModalEmail(e.target.value)}
-                    placeholder="ejemplo@sige.edu.gt"
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-950 dark:focus:border-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+                    placeholder="Se generará automáticamente..."
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 py-2 pl-9 pr-3 text-xs text-slate-500 dark:text-slate-400 placeholder:text-slate-400 dark:placeholder:text-slate-500 cursor-not-allowed opacity-80 focus:outline-none select-none"
                   />
                 </div>
               </div>
@@ -803,14 +875,26 @@ export default function Usuarios() {
                     <Lock size={14} />
                   </span>
                   <input
-                    type="password"
+                    type={showModalPassword ? 'password' : 'text'}
                     required
                     disabled={modalLoading || !!modalSuccess}
                     value={modalPassword}
                     onChange={(e) => setModalPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-950 dark:focus:border-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2 pl-9 pr-10 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-955 dark:focus:border-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
                   />
+                  <button
+                    type="button"
+                    disabled={modalLoading || !!modalSuccess}
+                    onClick={() => setShowModalPassword(!showModalPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none cursor-pointer"
+                  >
+                    {showModalPassword ? (
+                      <Eye size={14} />
+                    ) : (
+                      <EyeOff size={14} />
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -823,13 +907,7 @@ export default function Usuarios() {
                   disabled={modalLoading || !!modalSuccess}
                   value={modalRol}
                   onChange={(val) => setModalRol(val)}
-                  options={[
-                    { value: 1, label: 'Administrador' },
-                    { value: 2, label: 'Personal Académico' },
-                    { value: 3, label: 'Profesor Docente' },
-                    { value: 4, label: 'Alumno Regular' },
-                    { value: 5, label: 'Padre de Familia' }
-                  ]}
+                  options={rolesList.map(rol => ({ value: rol.IdRol, label: rol.NombreRol }))}
                 />
               </div>
 

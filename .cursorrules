@@ -48,3 +48,8 @@ Está estrictamente prohibido invocar alertas nativas (`alert()`) o generar resp
 - **Gobernanza de Color (Tokens de UI):** Queda prohibido hardcodear códigos de color hexadecimales directamente en los componentes. Los colores, contrastes y acentos visuales deben mapearse y heredarse directamente desde el archivo centralizador `frontend/src/theme/designTokens.ts`.
 - **Soporte Adaptativo Inteligente (Modo Oscuro):** Todo componente visual nuevo o refactorizado debe incluir obligatoriamente sus variantes cromáticas para el Modo Oscuro utilizando el prefijo `dark:` de Tailwind CSS v4, respondiendo en tiempo real a las preferencias del sistema operativo del dispositivo.
 - **Diseño Líquido y Responsivo:** Todo layout de visualización debe estructurarse con un enfoque móvil primero (`mobile-first`), empleando cajas flexibles (`Flexbox`) responsivas o mallas (`Grid`) adaptativas configuradas mediante breakpoints estandarizados (`sm:`, `md:`, `lg:`).
+
+### 📋 REGLAS DE COPYWRITING Y BRANDING
+- El nombre oficial y único del sistema para subtítulos, encabezados y pies de página es estrictamente "Sistema Integral de Gestión Escolar".
+- Queda TERMINANTEMENTE PROHIBIDO concatenar el sufijo "• SaaS" o cualquier etiqueta comercial similar en cualquier componente visual o metadato del proyecto.
+- El uso de siglas permitido en todo el software es únicamente "SIGE" (respetando estrictamente las mayúsculas y sin puntos de separación).

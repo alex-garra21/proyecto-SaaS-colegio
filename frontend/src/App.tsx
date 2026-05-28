@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Login from './modules/Public/Login';
+import StudentAdventureModule from './modules/StudentAdventureModule';
 import Usuarios from './modules/Admin/Usuarios';
 import Backups from './modules/Admin/Backups';
 import {
@@ -28,7 +29,7 @@ export default function App() {
       } else if (user.idRol === 3) {
         setActiveTab('calificaciones');
       } else if (user.idRol === 4 || user.idRol === 5) {
-        setActiveTab('boleta');
+        setActiveTab('aventura-kids');
       }
     } else {
       setActiveTab('login');
@@ -79,9 +80,14 @@ export default function App() {
     const matchesSearch = usuarioStr.toLowerCase().includes(searchBitacora.toLowerCase()) || 
                           tablaStr.toLowerCase().includes(searchBitacora.toLowerCase()) ||
                           detalleStr.toLowerCase().includes(searchBitacora.toLowerCase());
-    const matchesAction = filterAction === 'ALL' || b.Accion === filterAction;
+    const matchesAction = filterAction === 'ALL' || (b.Accion && b.Accion.startsWith(filterAction));
     return matchesSearch && matchesAction;
   });
+
+  const totalLogs = bitacorasList.length;
+  const insertCount = bitacorasList.filter(b => b.Accion && b.Accion.startsWith('INSERT')).length;
+  const updateCount = bitacorasList.filter(b => b.Accion && b.Accion.startsWith('UPDATE')).length;
+  const deleteCount = bitacorasList.filter(b => b.Accion && b.Accion.startsWith('DELETE')).length;
 
   // 3. Módulo Asentar Calificaciones (Profesor) State
   const [selectedStudent, setSelectedStudent] = useState('4'); // Alumno ID
@@ -179,9 +185,9 @@ export default function App() {
           {/* Menú de Sub-rutas secundario (Central, estilo del ejemplo) */}
           <div className="hidden md:flex items-center gap-6 text-[11px] font-semibold text-slate-500">
             <button
-              onClick={() => setActiveTab(user?.idRol === 1 ? 'backups' : user?.idRol === 3 ? 'calificaciones' : 'boleta')}
+              onClick={() => setActiveTab(user?.idRol === 1 ? 'backups' : user?.idRol === 3 ? 'calificaciones' : 'aventura-kids')}
               className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                ['backups', 'calificaciones', 'boleta'].includes(activeTab)
+                ['backups', 'calificaciones', 'aventura-kids'].includes(activeTab)
                   ? 'text-slate-950 border-b-2 border-slate-950 font-bold'
                   : ''
               }`}
@@ -206,6 +212,16 @@ export default function App() {
                 }`}
               >
                 Gestión de Usuarios
+              </button>
+            )}
+            {(user?.idRol === 4 || user?.idRol === 5) && (
+              <button
+                onClick={() => setActiveTab('boleta')}
+                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
+                  activeTab === 'boleta' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
+                }`}
+              >
+                Boleta
               </button>
             )}
             {(user?.idRol === 4 || user?.idRol === 5) && (
@@ -375,7 +391,7 @@ export default function App() {
                           Volumen de Auditoría
                         </span>
                         <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1 leading-none">
-                          1,048
+                          {totalLogs.toLocaleString()}
                         </h2>
                         <span className="text-[9px] text-slate-400 block mt-1">Registros totales en Bitácora</span>
                       </div>
@@ -383,15 +399,15 @@ export default function App() {
                       <div className="border-t border-slate-800 pt-3 text-[10px] space-y-1.5 text-slate-400">
                         <div className="flex justify-between">
                           <span>Operaciones INSERT:</span>
-                          <span className="font-bold text-slate-200">624</span>
+                          <span className="font-bold text-slate-200">{insertCount}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Operaciones UPDATE:</span>
-                          <span className="font-bold text-slate-200">312</span>
+                          <span className="font-bold text-slate-200">{updateCount}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Operaciones DELETE:</span>
-                          <span className="font-bold text-slate-200">112</span>
+                          <span className="font-bold text-slate-200">{deleteCount}</span>
                         </div>
                       </div>
                     </div>
@@ -618,6 +634,13 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            </ProtectedRoute>
+          )}
+
+          {/* TAB 4: AVENTURA KIDS (ALUMNO/PADRE: ROL 4 O 5) */}
+          {activeTab === 'aventura-kids' && (
+            <ProtectedRoute allowedRoles={[4, 5]} onFallbackNavigate={() => setActiveTab('aventura-kids')}>
+              <StudentAdventureModule />
             </ProtectedRoute>
           )}
 

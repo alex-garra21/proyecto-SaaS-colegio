@@ -9,6 +9,7 @@ import backupRoutes from './routes/backupRoutes.js';
 import { initializeStoredProcedures } from './config/db.js';
 import cron from 'node-cron';
 import { runAutomatedBackup } from './controllers/backupController.js';
+import { getRoles, generateInstitutionalEmail } from './controllers/userController.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -22,6 +23,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/backup', backupRoutes);
+app.get('/api/roles', getRoles as any);
+app.get('/api/usuarios/generar-correo', generateInstitutionalEmail as any);
 
 app.listen(port, async () => {
   console.log(`API escuchando en http://localhost:${port}`);

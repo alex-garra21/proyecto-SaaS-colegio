@@ -8,6 +8,7 @@ interface FilterBarProps {
   onRolChange: (value: number) => void;
   filterEstado: number;
   onEstadoChange: (value: number) => void;
+  rolesList: { IdRol: number; NombreRol: string }[];
 }
 
 export default function FilterBar({
@@ -16,15 +17,15 @@ export default function FilterBar({
   filterRol,
   onRolChange,
   filterEstado,
-  onEstadoChange
+  onEstadoChange,
+  rolesList
 }: FilterBarProps) {
   const rolOptions = [
     { value: 0, label: 'Todos los Roles' },
-    { value: 1, label: 'Administrador' },
-    { value: 2, label: 'Personal Académico' },
-    { value: 3, label: 'Profesor Docente' },
-    { value: 4, label: 'Alumno Regular' },
-    { value: 5, label: 'Padre de Familia' }
+    ...rolesList.map((rol) => ({
+      value: rol.IdRol,
+      label: rol.NombreRol
+    }))
   ];
 
   const estadoOptions = [

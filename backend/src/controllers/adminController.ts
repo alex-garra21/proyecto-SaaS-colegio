@@ -18,7 +18,7 @@ export async function getBitacoras(req: Request, res: Response): Promise<void> {
     const result = await pool.request().query<BitacoraRow>(`
       SELECT 
         b.IdBitacora,
-        u.Nombre AS Usuario,
+        u.NombreCompleto AS Usuario,
         b.Accion,
         b.TablaAfectada,
         b.Fecha,
