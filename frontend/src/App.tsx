@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
+import ConfigurationModal from './components/ConfigurationModal';
 import Login from './modules/Public/Login';
 import StudentAdventureModule from './modules/StudentAdventureModule';
 import Usuarios from './modules/Admin/Usuarios';
@@ -20,6 +21,7 @@ import {
 export default function App() {
   const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('login');
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   // Ajustar la pestaña activa por defecto según el rol del usuario cuando se autentique
   useEffect(() => {
@@ -164,7 +166,7 @@ export default function App() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-sans antialiased text-slate-800">
       {/* Sidebar de Navegación Lateral */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onOpenConfig={() => setIsConfigOpen(true)} />
 
       {/* Área de Contenido Principal a la derecha */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -252,7 +254,7 @@ export default function App() {
               <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-slate-950"></span>
             </button>
 
-            <button className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer">
+            <button onClick={() => setIsConfigOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer" title="Configuración de Cuenta">
               <Settings size={16} />
             </button>
           </div>
@@ -842,6 +844,8 @@ export default function App() {
 
         </main>
       </div>
+
+      <ConfigurationModal isOpen={isConfigOpen} onClose={() => setIsConfigOpen(false)} />
     </div>
   );
 }

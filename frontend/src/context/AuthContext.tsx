@@ -22,6 +22,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   login: (correo: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (updatedFields: Partial<AuthUser>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -67,6 +68,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_STORAGE_KEY);
     setToken(null);
     setUser(null);
+  }, []);
+
+  const updateUser = useCallback((updatedFields: Partial<AuthUser>) => {
+    setUser(prev => {
+      if (!prev) return null;
+      const nextUser = { ...prev, ...updatedFields };
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(nextUser));
+      return nextUser;
+    });
   }, []);
 
   const login = useCallback(
@@ -152,8 +162,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       login,
       logout,
+      updateUser,
     }),
-    [isAuthenticated, login, logout, token, user],
+    [isAuthenticated, login, logout, token, user, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
