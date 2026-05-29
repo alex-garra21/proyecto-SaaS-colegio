@@ -6,7 +6,6 @@ import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
-import profileRoutes from './routes/profileRoutes.js';
 import { initializeStoredProcedures } from './config/db.js';
 import cron from 'node-cron';
 import { runAutomatedBackup } from './controllers/backupController.js';
@@ -24,7 +23,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/backup', backupRoutes);
-app.use('/api/perfil', profileRoutes);
 app.get('/api/roles', getRoles as any);
 app.get('/api/usuarios/generar-correo', generateInstitutionalEmail as any);
 

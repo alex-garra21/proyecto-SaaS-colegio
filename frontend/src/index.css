@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&family=Inter:wght@400;500;600;700;800;900&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,0&family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -64,6 +65,88 @@ body {
   margin: 0;
 }
 
+@keyframes student-bounce {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes student-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes student-shimmer {
+  0% {
+    transform: translateX(-120%) rotate(25deg);
+  }
+  100% {
+    transform: translateX(220%) rotate(25deg);
+  }
+}
+
+.student-bounce-hover:hover {
+  animation: student-bounce 0.5s ease-in-out infinite alternate;
+}
+
+.student-float {
+  animation: student-float 3s ease-in-out infinite;
+}
+
+.student-pressable {
+  border-bottom: 4px solid rgba(0, 0, 0, 0.22);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    filter 0.16s ease;
+}
+
+.student-pressable:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.03);
+}
+
+.student-pressable:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+}
+
+.student-card-hover {
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.student-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 32px rgba(0, 88, 189, 0.14);
+}
+
+.student-medal-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.student-medal-shimmer::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  content: '';
+  height: 180%;
+  left: 0;
+  position: absolute;
+  top: -40%;
+  width: 42%;
+  animation: student-shimmer 3s infinite;
+}
+
 h1,
 h2 {
   font-family: var(--heading);
@@ -106,4 +189,119 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+.admin-page,
+.admin-page * {
+  color-scheme: light;
+}
+
+.admin-page h1,
+.admin-page h2,
+.admin-page h3,
+.admin-page h4,
+.admin-page strong {
+  color: #191c1e;
+}
+
+.admin-page header h2 {
+  color: #191c1e !important;
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.admin-page input,
+.admin-page textarea,
+.admin-page select,
+.admin-input {
+  background-color: #ffffff !important;
+  border-color: #c3c6d7 !important;
+  color: #191c1e !important;
+  caret-color: #004ac6;
+}
+
+.admin-page input::placeholder,
+.admin-page textarea::placeholder,
+.admin-input::placeholder {
+  color: #737686 !important;
+}
+
+.teacher-page,
+.teacher-page * {
+  color-scheme: light;
+}
+
+.teacher-page h1,
+.teacher-page h2,
+.teacher-page h3,
+.teacher-page h4,
+.teacher-page p,
+.teacher-page strong {
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.teacher-page h1 {
+  color: #0b1c30 !important;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 40px;
+}
+
+.teacher-page h2 {
+  color: inherit !important;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.teacher-page .material-symbols-outlined {
+  direction: ltr;
+  display: inline-block;
+  font-family: 'Material Symbols Outlined';
+  font-feature-settings: 'liga';
+  font-size: 24px;
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: normal;
+  line-height: 1;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+.teacher-input,
+.teacher-page input,
+.teacher-page textarea,
+.teacher-page select {
+  background-color: #ffffff !important;
+  border-color: #c4c5d5;
+  color: #0b1c30;
+}
+
+.teacher-page section,
+.teacher-page article,
+.teacher-page button,
+.teacher-page table,
+.teacher-page div {
+  box-sizing: border-box;
+}
+
+.teacher-page main {
+  overflow-x: hidden;
+}
+
+.teacher-input::placeholder,
+.teacher-page input::placeholder,
+.teacher-page textarea::placeholder {
+  color: #737687;
+}
+
+.admin-page input[type='file'] {
+  border-color: transparent !important;
+  color: #434655 !important;
 }

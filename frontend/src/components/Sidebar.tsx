@@ -18,10 +18,9 @@ import {
 type SidebarProps = {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onOpenConfig?: () => void;
 };
 
-export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -166,7 +165,7 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: Sideb
         {/* Configuración y Ayuda */}
         <div className="space-y-0.5 border-t border-slate-100 pt-4">
           <button
-            onClick={onOpenConfig || (() => alert('Configuración del Sistema:\nEstás en la versión SaaS Premium 2026. Los ajustes de perfil están bloqueados por políticas de la base de datos.'))}
+            onClick={() => alert('Configuración del Sistema:\nEstás en la versión SaaS Premium 2026. Los ajustes de perfil están bloqueados por políticas de la base de datos.')}
             className={`flex items-center text-slate-500 hover:bg-slate-50/50 hover:text-slate-800 transition-colors text-[11px] font-medium cursor-pointer ${
               isCollapsed ? 'justify-center p-2.5 rounded-xl w-12 h-10 mx-auto' : 'w-full gap-3 rounded-lg px-3 py-2'
             }`}
