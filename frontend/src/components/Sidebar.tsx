@@ -12,7 +12,10 @@ import {
   Settings,
   GraduationCap,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Shield,
+  DollarSign,
+  ChevronDown
 } from 'lucide-react';
 
 type SidebarProps = {
@@ -24,6 +27,7 @@ type SidebarProps = {
 export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: SidebarProps) {
   const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isControlDropdownOpen, setIsControlDropdownOpen] = useState(true);
 
   const role = user?.idRol ?? null;
 
@@ -51,6 +55,39 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: Sideb
           description: 'Control de Usuarios'
         }
       );
+    } else if (role === 2) {
+      items.push(
+        {
+          id: 'control-academico',
+          label: 'Control Académico',
+          icon: Database,
+          description: 'Gestión Institucional'
+        },
+        {
+          id: 'control-academico-alumnos',
+          label: 'Alumnos',
+          icon: GraduationCap,
+          description: 'Expedientes de Alumnos'
+        },
+        {
+          id: 'control-academico-encargados',
+          label: 'Encargados',
+          icon: Shield,
+          description: 'Padres y Tutores'
+        },
+        {
+          id: 'control-academico-docentes',
+          label: 'Docentes',
+          icon: BookOpen,
+          description: 'Claustro de Docentes'
+        },
+        {
+          id: 'colegiaturas',
+          label: 'Colegiaturas',
+          icon: DollarSign,
+          description: 'Caja y Mensualidades'
+        }
+      );
     } else if (role === 3) {
       items.push({
         id: 'calificaciones',
@@ -58,13 +95,34 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: Sideb
         icon: CheckSquare,
         description: 'sp_AsignarCalificacion'
       });
-    } else if (role === 4 || role === 5) {
+    } else if (role === 4) {
       items.push(
         {
           id: 'aventura-kids',
           label: 'Aventura Kids',
           icon: Sparkles,
           description: 'Portal de Alumno'
+        },
+        {
+          id: 'boleta',
+          label: 'Visualizar Boleta',
+          icon: BookOpen,
+          description: 'Historial Académico'
+        },
+        {
+          id: 'ia-metrics',
+          label: 'Métricas de IA',
+          icon: Brain,
+          description: 'Rendimiento Predictivo'
+        }
+      );
+    } else if (role === 5) {
+      items.push(
+        {
+          id: 'parent-portal',
+          label: 'Portal de Padres',
+          icon: Sparkles,
+          description: 'Estado de Hijos'
         },
         {
           id: 'boleta',
@@ -86,8 +144,9 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: Sideb
 
   const roleLabel = (idRol: number): string => {
     if (idRol === 1) return 'Administrador';
-    if (idRol === 3) return 'Profesor Docente';
-    if (idRol === 4) return 'Alumno Regular';
+    if (idRol === 2) return 'Control Académico';
+    if (idRol === 3) return 'Profesor / Docente';
+    if (idRol === 4) return 'Alumno';
     if (idRol === 5) return 'Padre de Familia';
     return 'Usuario Portal';
   };
@@ -129,6 +188,88 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: Sideb
         <nav className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
+            
+            if (item.id === 'control-academico') {
+              const isControlAcademicoActive = activeTab === 'control-academico' ||
+                                               activeTab === 'control-academico-secciones' ||
+                                               activeTab === 'control-academico-vinculaciones';
+              
+              return (
+                <div key={item.id} className="space-y-1">
+                  <button
+                    onClick={() => {
+                      if (isCollapsed) {
+                        setIsCollapsed(false);
+                        setIsControlDropdownOpen(true);
+                      } else {
+                        setIsControlDropdownOpen(!isControlDropdownOpen);
+                      }
+                      setActiveTab('control-academico');
+                    }}
+                    className={`flex items-center transition-all duration-150 cursor-pointer ${
+                      isCollapsed 
+                        ? 'justify-center p-2.5 rounded-xl w-12 h-12 mx-auto' 
+                        : 'w-full gap-3 rounded-lg px-3 py-2.5 text-left'
+                    } ${
+                      isControlAcademicoActive
+                        ? `bg-slate-50 text-slate-900 font-semibold shadow-sm ${!isCollapsed ? 'border-l-2 border-slate-900 pl-2.5' : ''}`
+                        : 'text-slate-500 hover:bg-slate-50/50 hover:text-slate-800'
+                    }`}
+                    title={isCollapsed ? item.label : undefined}
+                  >
+                    <Icon
+                      size={16}
+                      strokeWidth={isControlAcademicoActive ? 2 : 1.8}
+                      className={isControlAcademicoActive ? 'text-slate-950 shrink-0' : 'text-slate-400 shrink-0'}
+                    />
+                    {!isCollapsed && (
+                      <div className="flex-1 flex items-center justify-between min-w-0 animate-in fade-in duration-350">
+                        <span className="block text-[11px] font-medium truncate">{item.label}</span>
+                        <ChevronDown
+                          size={13}
+                          className={`text-slate-400 transition-transform duration-200 ${
+                            isControlDropdownOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Sub-elementos de Control Académico */}
+                  {isControlDropdownOpen && !isCollapsed && (
+                    <div className="pl-6 space-y-1 border-l border-slate-100 ml-5.5 mt-1 animate-in slide-in-from-top-1 fade-in duration-200">
+                      <button
+                        onClick={() => setActiveTab('control-academico-secciones')}
+                        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-all duration-150 cursor-pointer text-[10px] ${
+                          activeTab === 'control-academico-secciones'
+                            ? 'bg-slate-50 text-[#2563EB] font-bold shadow-sm'
+                            : 'text-slate-500 hover:bg-slate-50/30 hover:text-slate-800 font-medium'
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          activeTab === 'control-academico-secciones' ? 'bg-[#2563EB]' : 'bg-slate-300'
+                        }`}></span>
+                        <span>Secciones y Horarios</span>
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('control-academico-vinculaciones')}
+                        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-all duration-150 cursor-pointer text-[10px] ${
+                          activeTab === 'control-academico-vinculaciones'
+                            ? 'bg-slate-50 text-[#2563EB] font-bold shadow-sm'
+                            : 'text-slate-500 hover:bg-slate-50/30 hover:text-slate-800 font-medium'
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          activeTab === 'control-academico-vinculaciones' ? 'bg-[#2563EB]' : 'bg-slate-300'
+                        }`}></span>
+                        <span>Matrícula y Familias</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const isActive = activeTab === item.id;
             return (
               <button

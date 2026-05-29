@@ -9,7 +9,9 @@ import {
   EyeOff,
   Save,
   Key,
-  Settings
+  Settings,
+  Phone,
+  FileText
 } from 'lucide-react';
 import { designTokens } from '../theme/designTokens';
 
@@ -28,6 +30,10 @@ export default function ConfigurationModal({ isOpen, onClose }: ConfigurationMod
   // Estado - Pestaña 1: Actualizar Datos
   const [nombres, setNombres] = useState('');
   const [apellidos, setApellidos] = useState('');
+  const [codigoEstudiante, setCodigoEstudiante] = useState('');
+  const [codigoDocente, setCodigoDocente] = useState('');
+  const [dpi, setDpi] = useState('');
+  const [telefono, setTelefono] = useState('');
 
   // Estado - Pestaña 2: Actualizar Contraseña
   const [currentPassword, setCurrentPassword] = useState('');
@@ -63,6 +69,32 @@ export default function ConfigurationModal({ isOpen, onClose }: ConfigurationMod
       }
       setNombres(defaultNombres);
       setApellidos(defaultApellidos);
+
+      // Cargar metadata extendida adaptativa desde localStorage
+      try {
+        const metaStr = localStorage.getItem(`sige_user_meta_${user.idUsuario}`);
+        if (metaStr) {
+          const meta = JSON.parse(metaStr);
+          setCodigoEstudiante(meta.codigoEstudiante || '');
+          setCodigoDocente(meta.codigoDocente || '');
+          setDpi(meta.dpi || '');
+          setTelefono(meta.telefono || '');
+        } else {
+          // Si no hay guardada en localStorage, ponemos placeholders/mockups para pruebas
+          if (user.idRol === 4) {
+            setCodigoEstudiante('A128BFC');
+          } else if (user.idRol === 3) {
+            setCodigoDocente('D10294');
+            setDpi('1998 29918 0101');
+            setTelefono('5998-1002');
+          } else if (user.idRol === 5) {
+            setDpi('1998 29918 0101');
+            setTelefono('5998-1002');
+          }
+        }
+      } catch (err) {
+        console.error('Error al cargar la metadata adaptativa de usuario:', err);
+      }
     }
 
     // Resetear pestaña de contraseñas cuando se cierra/abre
@@ -287,6 +319,119 @@ export default function ConfigurationModal({ isOpen, onClose }: ConfigurationMod
                   />
                 </div>
               </div>
+
+              {/* Campos adaptativos por rol */}
+              {user?.idRol === 4 && (
+                <div className="space-y-1.5 animate-in fade-in duration-200">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Código de Estudiante (Académico)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 flex items-center text-slate-400 dark:text-slate-500">
+                      <Key size={14} />
+                    </span>
+                    <input
+                      type="text"
+                      readOnly
+                      value={codigoEstudiante}
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 py-2 pl-9 pr-4 text-xs text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {user?.idRol === 3 && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Código de Docente (Académico)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 flex items-center text-slate-400 dark:text-slate-500">
+                        <Key size={14} />
+                      </span>
+                      <input
+                        type="text"
+                        readOnly
+                        value={codigoDocente}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 py-2 pl-9 pr-4 text-xs text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      DPI / CUI
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 flex items-center text-slate-400 dark:text-slate-500">
+                        <FileText size={14} />
+                      </span>
+                      <input
+                        type="text"
+                        readOnly
+                        value={dpi}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 py-2 pl-9 pr-4 text-xs text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Teléfono de Contacto
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 flex items-center text-slate-400 dark:text-slate-500">
+                        <Phone size={14} />
+                      </span>
+                      <input
+                        type="text"
+                        readOnly
+                        value={telefono}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 py-2 pl-9 pr-4 text-xs text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {user?.idRol === 5 && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      DPI / CUI
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 flex items-center text-slate-400 dark:text-slate-500">
+                        <FileText size={14} />
+                      </span>
+                      <input
+                        type="text"
+                        readOnly
+                        value={dpi}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 py-2 pl-9 pr-4 text-xs text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Teléfono de Contacto
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 flex items-center text-slate-400 dark:text-slate-500">
+                        <Phone size={14} />
+                      </span>
+                      <input
+                        type="text"
+                        readOnly
+                        value={telefono}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 py-2 pl-9 pr-4 text-xs text-slate-500 dark:text-slate-400 cursor-not-allowed font-mono focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Botones de acción */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800/80 mt-6">

@@ -15,6 +15,11 @@ export const designTokens = {
       borderFocus: 'focus:border-slate-900 dark:focus:border-slate-100',
       bgApp: 'bg-slate-50 dark:bg-slate-950',
       bgCard: 'bg-white dark:bg-slate-900/60',
+      sigeBlue: 'bg-[#2563EB] dark:bg-[#3b82f6]',
+      sigeBlueHover: 'hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb]',
+      sigeBlueText: 'text-[#2563EB] dark:text-[#3b82f6]',
+      sigeSlateText: 'text-[#64748B] dark:text-[#94a3b8]',
+      sigeSlateBorder: 'border-[#E2E8F0] dark:border-[#334155]',
     },
     status: {
       success: {

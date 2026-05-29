@@ -73,9 +73,9 @@ function roleName(idRol: number): string {
     case 1:
       return 'Administrador';
     case 2:
-      return 'Personal Académico';
+      return 'Control Académico';
     case 3:
-      return 'Docente / Profesor';
+      return 'Profesor / Docente';
     case 4:
       return 'Alumno';
     case 5:

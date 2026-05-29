@@ -52,3 +52,15 @@ export function requireAdmin(
   }
   next();
 }
+
+export function requireAdminOrControlAcademico(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user || (req.user.IdRol !== 1 && req.user.IdRol !== 2)) {
+    res.status(403).json({ message: 'Acceso restringido. Privilegios de Administrador o Control Académico requeridos.' });
+    return;
+  }
+  next();
+}

@@ -37,20 +37,42 @@ organisms/: Estructuras de alta complejidad compuestas por moléculas y átomos 
 modules/ o pages/: Vistas de alto nivel encargadas de orquestar los componentes, gestionar el estado de los contextos y consumir los servicios endpoints de la API (ej. @Usuarios.tsx).
 
 4. Acabado Premium, UI de Alta Fidelidad y Microinteracciones
+Filosofía Estética: El sistema adopta un enfoque Moderno Corporativo y Minimalista, priorizando la utilidad, la claridad cognitiva y la eficiencia institucional sobre la decoración excesiva.
+
 Prohibición de Selectores Nativos: Queda terminantemente prohibido el uso de la etiqueta estándar <select> del navegador en interfaces principales. Toda selección debe gestionarse mediante el átomo CustomSelect, implementando menús flotantes con posicionamiento absoluto (absolute z-50), sombras suavizadas (shadow-xl) y rotación animada de flechas indicadoras.
+
+Diseño de Tablas de Alta Densidad: Las tablas (núcleo de la experiencia) deben contar con encabezados fijos (sticky), resaltado de fila en hover (zebra-striping) y acciones en línea. En vistas densas, el espaciado vertical de las filas puede reducirse a una escala de 8px (xs) para maximizar la información visible sobre el pliegue de la pantalla.
+
+Formas y Radios de Curvatura: Las esquinas del software deben ser sutiles y geométricas para transmitir rigor técnico:
+
+Botones e Inputs: Radio base de 4px (rounded o 0.25rem).
+
+Tarjetas de Datos y Contenedores: Radio de 8px (rounded-lg o 0.5rem).
+
+Insignias de Estado (Badges): Radio completamente redondeado (rounded-full o píldora) para diferenciarse de elementos accionables.
+
+Elevación, Profundidad y Capas: La profundidad se genera mediante capas tonales y contornos de bajo contraste (1px border) utilizando el color #E2E8F0. Las sombras intensas quedan estrictamente prohibidas; se permite únicamente una sombra ambiental suave, difusa y de baja opacidad en modales o ventanas emergentes para sugerir la superposición.
 
 Mecanismos de Defensa en UX (Auto-Bloqueo): Las filas de tablas administrativas que correspondan al usuario logueado en la sesión actual deben inhabilitar automáticamente (disabled, pointer-events-none y opacidad reducida) los controles críticos de cambio de rol o toggle de estado, previniendo accidentes de auto-bloqueo de privilegios en caliente.
 
 Seguridad y Visibilidad de Contraseñas: Todo campo de tipo contraseña (type="password") en formularios de login, registros o modales de configuración debe integrar de manera obligatoria e individual un botón absoluto de alternancia visual utilizando los iconos Eye y EyeOff de Lucide.
 
-Validación Cromática Simétrica: En interfaces que requieran confirmación de contraseña (Registro o Actualización de Credenciales), el sistema debe evaluar la coincidencia en tiempo real tan pronto el campo de confirmación tenga contenido. Ambos campos (el de la nueva contraseña y el de confirmación) deben teñirse simultáneamente en rojo (border-red-500 bg-red-50/10) si no coinciden, o en verde (border-green-500 bg-green-50/10) si son perfectamente idénticos, bloqueando el envío si hay discrepancia.
+Validación Cromática Simétrica: En interfaces que requieran confirmación de contraseña (Registro o Actualización de Credenciales), el sistema debe evaluar la coincidencia en tiempo real tan pronto el campo de confirmación tenga contenido. Ambos campos (el de la nueva contraseña y el de confirmación) deben teñirse simultáneamente en rojo (border-red-500 bg-red-50/10) si no coinciden, o en verde (border-green-500 bg-green-50/10) si son perfectamente idénticos, bloqueando el envío si hay la más mínima discrepancia.
 
 Llamados a la Acción de Éxito (CTAs): Al completar un flujo de registro con pantalla de éxito, queda prohibido el uso de enlaces de texto simples o subrayados para la redirección. Se debe emplear un botón principal de ancho completo (w-full) que respete rigurosamente los mismos tokens de diseño (color de fondo oscuro, esquinas redondeadas y padding) que el botón de inicio de sesión.
 
 Fluidez Visual: Cada elemento interactivo (botones, enlaces, filas, switches) debe integrar transiciones de cambio de estado CSS fluidas mediante la utilería transition-all duration-300 ease-in-out.
 
 5. Política de Notificaciones e Interacción (UX Emocional y Modales Nativos)
-Erradicación de Alertas Nativas: Queda terminantemente prohibido invocar ventanas flotantes del navegador mediante alert(). Toda configuración, ajuste de perfil o confirmación debe desplegarse dinámicamente mediante componentes modales estilizados integrados dentro de la propia aplicación web.
+Erradicación de Alertas Nativas: Queda terminantemente prohibido invocar ventanas flotantes del navegador mediante alert(). Toda configuración, ajuste de perfil o confirmación debe desplegarse dinámicamente mediante componentes modales estilizados e integrados dentro de la propia aplicación web.
+
+Insignias de Estado Semánticas (Status Badges): El mapeo visual de estados institucionales debe responder estrictamente a las siguientes tres reglas:
+
+Activo: Fondo azul claro con texto Azul Primario.
+
+Inactivo: Fondo gris claro con texto Pizarra Secundario.
+
+Conflictivo (Advertencias o Pendientes): Fondo ámbar suave con texto Ámbar Oscuro (reservado exclusivamente para llamadas de atención del plantel).
 
 Mensajes Humanizados: Está estrictamente prohibido generar respuestas genéricas que expongan IDs numéricos internos del motor hacia el cliente. Todo feedback de éxito debe ser humanizado y contextualizado utilizando las propiedades de identidad del objeto afectado:
 
@@ -63,13 +85,33 @@ Modificaciones de Atributos/Roles: Debe traducir el ID técnico a la etiqueta co
 Ubicación y Estilo: Los Toasts de éxito (verdes) o error (rojos) deben renderizarse de forma asíncrona exclusivamente en la esquina inferior derecha, respetando la línea gráfica del colegio.
 
 6. Centralización de Estilos, Responsividad y Branding
-Gobernanza de Color (Tokens de UI): Queda prohibido hardcodear códigos de color hexadecimales directamente en los componentes. Los colores, contrastes y acentos visuales deben mapearse y heredarse directamente desde el archivo centralizador frontend/src/theme/designTokens.ts.
+Gobernanza de Color (Tokens de UI): Queda prohibido hardcodear códigos de color hexadecimales directamente en los componentes. Los colores, contrastes y acentos visuales deben mapearse y heredarse directamente desde el archivo centralizador frontend/src/theme/designTokens.ts, el cual se rige bajo la siguiente paleta estructural:
+
+Azul Primario (#2563EB): Destinado a acciones principales, navegación activa e interacción clave.
+
+Pizarra Secundario (#64748B): Para texto de soporte, iconos secundarios y estados neutros.
+
+Ámbar Conflictivo (#D97706): Específico para advertencias, bloqueos o flujos pendientes.
+
+Superficie Neutra (#F8FAFC): Color de fondo de la lona para asegurar el máximo contraste.
+
+Estándar Tipográfico Integrado: Se utiliza la tipografía Inter de forma exclusiva para garantizar la legibilidad.
+
+El texto base para tablas complejas y formularios extensos adopta de forma predeterminada el tamaño de 14px (body-sm).
+
+Los encabezados de las tablas deben formatearse con el estilo de metadatos label-md (12px, negrita 600), aplicando transformación automática a mayúsculas para diferenciarse del contenido interactivo.
+
+Modelo de Diseño y Espaciado Lineal (Escala de 8px): Toda distribución espacial debe responder a una progresión lineal basada en múltiplos de 8px (Márgenes contenedores = 24px / Paddings internos = 16px). El layout general se implementa mediante un Modelo Híbrido Fijo-Fluido:
+
+La barra de navegación lateral (Sidebar) se mantiene fija a un ancho estricto de 260px con un tono sutilmente más oscuro que el fondo común.
+
+El contenedor central de contenidos es fluido, adaptándose al ancho del monitor pero limitado a un tope máximo de 1600px para asegurar líneas de lectura óptimas.
 
 Soporte Adaptativo Inteligente (Modo Oscuro): Todo componente visual nuevo o refactorizado debe incluir obligatoriamente sus variantes cromáticas para el Modo Oscuro utilizando el prefijo dark: de Tailwind CSS v4, respondiendo en tiempo real a las preferencias del sistema operativo del dispositivo.
 
 Diseño Líquido y Responsivo: Todo layout de visualización debe estructurarse con un enfoque móvil primero (mobile-first), empleando cajas flexibles (Flexbox) responsivas o mallas (Grid) adaptativas configuradas mediante breakpoints estandarizados (sm:, md:, lg:).
 
-Reglas de Copywriting y Identidad Institucional:
+Reglas de Copywriting e Identidad Institucional:
 
 El nombre oficial y único del sistema para subtítulos, encabezados y pies de página es estrictamente "Sistema Integral de Gestión Escolar".
 

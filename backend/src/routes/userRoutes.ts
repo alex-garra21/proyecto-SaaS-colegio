@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { getUsers, createUser, updateUserRole, toggleUserStatus, deleteUser, generateInstitutionalEmail } from '../controllers/userController.js';
-import { authenticateToken, requireAdmin } from '../middleware/authMiddleware.js';
+import { authenticateToken, requireAdminOrControlAcademico } from '../middleware/authMiddleware.js';
 
 const router: Router = Router();
 
-// Proteger todas las rutas bajo autenticación JWT y rol exclusivo de Administrador (idRol = 1)
+// Proteger todas las rutas bajo autenticación JWT y rol de Administrador o Control Académico
 router.use(authenticateToken as any);
-router.use(requireAdmin as any);
+router.use(requireAdminOrControlAcademico as any);
 
 router.get('/', getUsers as any);
 router.get('/generar-correo', generateInstitutionalEmail as any);

@@ -4,18 +4,19 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import ConfigurationModal from './components/ConfigurationModal';
 import Login from './modules/Public/Login';
-import StudentAdventureModule from './modules/StudentAdventureModule';
+import ControlAcademicoDashboard from './components/organisms/ControlAcademicoDashboard';
+import DocenteDashboard from './components/organisms/DocenteDashboard';
+import ParentDashboard from './components/organisms/ParentDashboard';
+import AlumnoDashboard from './components/organisms/AlumnoDashboard';
 import Usuarios from './modules/Admin/Usuarios';
 import Backups from './modules/Admin/Backups';
+import Alumnos from './components/organisms/Alumnos';
+import Encargados from './components/organisms/Encargados';
+import Docentes from './components/organisms/Docentes';
 import {
-  CheckSquare,
   AlertTriangle,
   Search,
-  CheckCircle,
-  Settings,
-  Bell,
-  Sparkles,
-  AlertCircle
+  Sparkles
 } from 'lucide-react';
 
 export default function App() {
@@ -23,16 +24,20 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('login');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
+  const getDefaultTab = () => {
+    if (!user) return 'login';
+    if (user.idRol === 1) return 'backups';
+    if (user.idRol === 2) return 'control-academico';
+    if (user.idRol === 3) return 'calificaciones';
+    if (user.idRol === 4) return 'aventura-kids';
+    if (user.idRol === 5) return 'parent-portal';
+    return 'login';
+  };
+
   // Ajustar la pestaña activa por defecto según el rol del usuario cuando se autentique
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.idRol === 1) {
-        setActiveTab('backups');
-      } else if (user.idRol === 3) {
-        setActiveTab('calificaciones');
-      } else if (user.idRol === 4 || user.idRol === 5) {
-        setActiveTab('aventura-kids');
-      }
+      setActiveTab(getDefaultTab());
     } else {
       setActiveTab('login');
     }
@@ -91,49 +96,7 @@ export default function App() {
   const updateCount = bitacorasList.filter(b => b.Accion && b.Accion.startsWith('UPDATE')).length;
   const deleteCount = bitacorasList.filter(b => b.Accion && b.Accion.startsWith('DELETE')).length;
 
-  // 3. Módulo Asentar Calificaciones (Profesor) State
-  const [selectedStudent, setSelectedStudent] = useState('4'); // Alumno ID
-  const [selectedActivity, setSelectedActivity] = useState('1'); // Actividad ID
-  const [grade, setGrade] = useState('');
-  const [observations, setObservations] = useState('');
-  const [profRecentGrades, setProfRecentGrades] = useState([
-    { id: 101, alumno: 'Juan Pérez', actividad: 'Examen 1: Matemáticas', nota: 88, obs: 'Excelente desarrollo de lógica algebraica.', fecha: '2026-05-26' },
-    { id: 102, alumno: 'María Gómez', actividad: 'Tarea 2: Física', nota: 95, obs: 'Entrega impecable con gráficas vectoriales.', fecha: '2026-05-25' }
-  ]);
-  const [showGradeSuccess, setShowGradeSuccess] = useState(false);
 
-  const handleGradeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsedGrade = parseFloat(grade);
-    if (isNaN(parsedGrade) || parsedGrade < 0 || parsedGrade > 100) {
-      alert('Error: La calificación debe ser un valor decimal válido entre 0 y 100.');
-      return;
-    }
-
-    const studentName = selectedStudent === '4' ? 'Juan Pérez' : selectedStudent === '42' ? 'Carlos Ruiz' : 'María Gómez';
-    const activityName = selectedActivity === '1' ? 'Examen 1: Matemáticas' : selectedActivity === '2' ? 'Proyecto: Ciencias' : 'Tarea 2: Física';
-
-    // Agregar nueva nota asentada
-    setProfRecentGrades(prev => [
-      {
-        id: Date.now(),
-        alumno: studentName,
-        actividad: activityName,
-        nota: parsedGrade,
-        obs: observations || 'Sin observaciones.',
-        fecha: new Date().toISOString().substring(0, 10)
-      },
-      ...prev
-    ]);
-
-    setShowGradeSuccess(true);
-    setGrade('');
-    setObservations('');
-
-    setTimeout(() => {
-      setShowGradeSuccess(false);
-    }, 4000);
-  };
 
   // 4. Módulo Boleta (Alumno) State
   const mockBoleta = [
@@ -170,109 +133,63 @@ export default function App() {
 
       {/* Área de Contenido Principal a la derecha */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        
-        {/* Barra Superior Premium (Inspirada en el Top Navbar del Event Manager) */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 bg-white px-8 select-none">
-          {/* Nombre y Breadcrumb en la izquierda */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-slate-900">SIGE</span>
-            <span className="text-slate-300">|</span>
-            <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1">
-              {user?.idRol === 1 && 'Portal Administrativo'}
-              {user?.idRol === 3 && 'Portal Docente'}
-              {(user?.idRol === 4 || user?.idRol === 5) && 'Portal Académico'}
-            </span>
-          </div>
-
-          {/* Menú de Sub-rutas secundario (Central, estilo del ejemplo) */}
-          <div className="hidden md:flex items-center gap-6 text-[11px] font-semibold text-slate-500">
-            <button
-              onClick={() => setActiveTab(user?.idRol === 1 ? 'backups' : user?.idRol === 3 ? 'calificaciones' : 'aventura-kids')}
-              className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                ['backups', 'calificaciones', 'aventura-kids'].includes(activeTab)
-                  ? 'text-slate-950 border-b-2 border-slate-950 font-bold'
-                  : ''
-              }`}
-            >
-              Vista Principal
-            </button>
-            {user?.idRol === 1 && (
-              <button
-                onClick={() => setActiveTab('bitacoras')}
-                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                  activeTab === 'bitacoras' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
-                }`}
-              >
-                Bitácoras
-              </button>
-            )}
-            {user?.idRol === 1 && (
-              <button
-                onClick={() => setActiveTab('usuarios')}
-                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                  activeTab === 'usuarios' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
-                }`}
-              >
-                Gestión de Usuarios
-              </button>
-            )}
-            {(user?.idRol === 4 || user?.idRol === 5) && (
-              <button
-                onClick={() => setActiveTab('boleta')}
-                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                  activeTab === 'boleta' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
-                }`}
-              >
-                Boleta
-              </button>
-            )}
-            {(user?.idRol === 4 || user?.idRol === 5) && (
-              <button
-                onClick={() => setActiveTab('ia-metrics')}
-                className={`hover:text-slate-900 transition-colors pb-5 pt-5 cursor-pointer ${
-                  activeTab === 'ia-metrics' ? 'text-slate-950 border-b-2 border-slate-950 font-bold' : ''
-                }`}
-              >
-                Métricas IA
-              </button>
-            )}
-          </div>
-
-          {/* Buscador, Notificaciones y Configuración en la derecha */}
-          <div className="flex items-center gap-4">
-            <div className="relative hidden sm:block">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar en la plataforma..."
-                className="w-48 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-[10px] text-slate-700 placeholder:text-slate-400 focus:border-slate-950 focus:bg-white focus:outline-none"
-              />
-            </div>
-            
-            <button className="relative flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer">
-              <Bell size={16} />
-              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-slate-950"></span>
-            </button>
-
-            <button onClick={() => setIsConfigOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-800 transition-colors cursor-pointer" title="Configuración de Cuenta">
-              <Settings size={16} />
-            </button>
-          </div>
-        </header>
-
         {/* Cuerpo del Módulo Dinámico con Rejilla de Columnas (2/3 de Ancho y 1/3 Lateral, exacto al ejemplo) */}
         <main className="flex-grow p-8 max-w-7xl w-full mx-auto">
           
+          {/* TAB 0: CONTROL ACADÉMICO (CONTROL ACADÉMICO: ROL 2) */}
+          {activeTab === 'control-academico' && (
+            <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <ControlAcademicoDashboard activeSubTab="catalogos" />
+            </ProtectedRoute>
+          )}
+
+          {activeTab === 'control-academico-secciones' && (
+            <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <ControlAcademicoDashboard activeSubTab="secciones" />
+            </ProtectedRoute>
+          )}
+
+          {activeTab === 'control-academico-vinculaciones' && (
+            <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <ControlAcademicoDashboard activeSubTab="vinculaciones" />
+            </ProtectedRoute>
+          )}
+
+          {activeTab === 'colegiaturas' && (
+            <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <ControlAcademicoDashboard activeSubTab="caja" />
+            </ProtectedRoute>
+          )}
+
+          {/* SUB-TABS CONTROL ACADÉMICO */}
+          {activeTab === 'control-academico-alumnos' && (
+            <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <Alumnos />
+            </ProtectedRoute>
+          )}
+
+          {activeTab === 'control-academico-encargados' && (
+            <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <Encargados />
+            </ProtectedRoute>
+          )}
+
+          {activeTab === 'control-academico-docentes' && (
+            <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <Docentes />
+            </ProtectedRoute>
+          )}
+
           {/* TAB 1: MÓDULO DE BACKUPS (ADMIN: ROL 1) */}
           {activeTab === 'backups' && (
-            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab('backups')}>
+            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
               <Backups />
             </ProtectedRoute>
           )}
 
           {/* TAB 2: BITÁCORAS DE AUDITORÍA (ADMIN: ROL 1) */}
           {activeTab === 'bitacoras' && (
-            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab('backups')}>
+            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
               <div className="space-y-6">
                 <div>
                   <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
@@ -432,223 +349,35 @@ export default function App() {
 
           {/* TAB 2.5: GESTIÓN DE USUARIOS (ADMIN: ROL 1) */}
           {activeTab === 'usuarios' && (
-            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab('backups')}>
+            <ProtectedRoute allowedRoles={[1]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
               <Usuarios />
             </ProtectedRoute>
           )}
 
           {/* TAB 3: ASENTAR CALIFICACIONES (PROFESOR: ROL 3) */}
           {activeTab === 'calificaciones' && (
-            <ProtectedRoute allowedRoles={[3]} onFallbackNavigate={() => setActiveTab('calificaciones')}>
-              <div className="space-y-6">
-                <div>
-                  <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-                    Asentar Calificaciones
-                  </h1>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Evaluación académica transaccional directa conectada con el procedimiento almacenado <code className="font-mono text-[10px] bg-slate-100 px-1 py-0.5 rounded">sp_AsignarCalificacion</code>.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  
-                  {/* Columna de Formulario (2/3 de ancho) */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="rounded-xl bg-white border border-slate-100 p-5 shadow-sm space-y-4">
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-50">
-                        Registrar Calificación de Actividad
-                      </h3>
-
-                      {showGradeSuccess && (
-                        <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-xs text-emerald-800 animate-in fade-in slide-in-from-top-2">
-                          <CheckCircle className="text-emerald-600 shrink-0" size={16} />
-                          <div>
-                            <span className="font-bold block">Transacción Completada</span>
-                            <span>La nota se registró físicamente y se audito en la Bitácora.</span>
-                          </div>
-                        </div>
-                      )}
-
-                      <form onSubmit={handleGradeSubmit} className="space-y-4 text-left">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                              Seleccionar Alumno
-                            </label>
-                            <select
-                              value={selectedStudent}
-                              onChange={(e) => setSelectedStudent(e.target.value)}
-                              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-3 text-xs text-slate-700 focus:border-slate-950 focus:bg-white focus:outline-none cursor-pointer"
-                            >
-                              <option value="4">Juan Pérez</option>
-                              <option value="42">Carlos Ruiz</option>
-                              <option value="48">María Gómez</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                              Actividad Evaluada
-                            </label>
-                            <select
-                              value={selectedActivity}
-                              onChange={(e) => setSelectedActivity(e.target.value)}
-                              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-3 text-xs text-slate-700 focus:border-slate-950 focus:bg-white focus:outline-none cursor-pointer"
-                            >
-                              <option value="1">Examen 1 (Matemáticas Avanzadas)</option>
-                              <option value="2">Proyecto (Ciencias y Lab)</option>
-                              <option value="3">Tarea 2 (Física Clásica)</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                            Calificación Obtenida (0.00 - 100.00)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            required
-                            value={grade}
-                            onChange={(e) => setGrade(e.target.value)}
-                            placeholder="Ingrese nota decimal, ej: 88.50"
-                            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-3 text-xs text-slate-700 focus:border-slate-950 focus:bg-white focus:outline-none"
-                          />
-                          <span className="block text-[9px] text-slate-400 mt-1 leading-normal">
-                            Validado dinámicamente mediante la restricción de comprobación <code className="font-mono bg-slate-50 p-0.5 rounded text-[8px]">CK_Nota CHECK (Nota BETWEEN 0 AND 100)</code>.
-                          </span>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                            Observación Académica (Detalle de Calificación)
-                          </label>
-                          <textarea
-                            rows={3}
-                            value={observations}
-                            onChange={(e) => setObservations(e.target.value)}
-                            placeholder="Escriba comentarios sobre el desempeño del alumno en esta entrega..."
-                            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 px-3 text-xs text-slate-700 focus:border-slate-950 focus:bg-white focus:outline-none resize-none"
-                          ></textarea>
-                        </div>
-
-                        <button
-                          type="submit"
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 active:scale-[0.99] transition-all cursor-pointer mt-2"
-                        >
-                          <CheckSquare size={14} />
-                          Guardar Nota Físicamente
-                        </button>
-                      </form>
-                    </div>
-
-                    {/* Tabla de Calificaciones Recientes */}
-                    <div className="rounded-xl bg-white border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-5 py-3 border-b border-slate-100">
-                        <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-wider">
-                          Notas Recientes Registradas en tu Portal
-                        </h4>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-[11px] border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
-                              <th className="py-2 px-4">Alumno</th>
-                              <th className="py-2 px-4">Actividad</th>
-                              <th className="py-2 px-4 text-center">Calificación</th>
-                              <th className="py-2 px-4">Observaciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 text-slate-600">
-                            {profRecentGrades.map((g) => (
-                              <tr key={g.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="py-2.5 px-4 font-semibold text-slate-900">{g.alumno}</td>
-                                <td className="py-2.5 px-4 text-slate-500">{g.actividad}</td>
-                                <td className="py-2.5 px-4 text-center font-mono font-bold">
-                                  <span className={g.nota >= 60 ? 'text-emerald-600' : 'text-red-500'}>
-                                    {g.nota.toFixed(1)}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-4 text-[10px] italic text-slate-400 max-w-xs truncate">{g.obs}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Columna Lateral Estadísticas Docentes (1/3) */}
-                  <div className="lg:col-span-1 space-y-6">
-                    {/* Live Stats */}
-                    <div className="rounded-xl bg-slate-950 p-5 shadow-xl text-white space-y-4">
-                      <div>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                          Rendimiento del Salón
-                        </span>
-                        <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1 leading-none">
-                          82.4
-                        </h2>
-                        <span className="text-[9px] text-emerald-400 font-bold block mt-1">Calificación Promedio del Grupo</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 border-t border-slate-800 pt-4 text-left">
-                        <div>
-                          <span className="block text-[9px] uppercase tracking-wide text-slate-500">Tasa Aprobación</span>
-                          <span className="text-xs font-bold text-slate-200">88.2%</span>
-                        </div>
-                        <div>
-                          <span className="block text-[9px] uppercase tracking-wide text-slate-500">Evaluados</span>
-                          <span className="text-xs font-bold text-slate-200">42 Alumnos</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Alertas Rápidas Docentes */}
-                    <div className="rounded-xl bg-white border border-slate-100 p-5 shadow-sm space-y-3.5">
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-50">
-                        Atención Académica
-                      </h3>
-
-                      <div className="space-y-3">
-                        <div className="flex gap-2.5 bg-red-50/60 p-2.5 rounded-lg border border-red-100/60">
-                          <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={15} />
-                          <div>
-                            <h4 className="text-[10px] font-bold text-slate-900">Rezago en Física Clásica:</h4>
-                            <p className="text-[9px] text-slate-600 leading-normal mt-0.5">
-                              <b>Carlos Ruiz</b> cuenta con promedio reprobatorio en el segundo bloque (57.1%).
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-100/60">
-                          <Sparkles className="text-indigo-500 shrink-0 mt-0.5" size={15} />
-                          <div>
-                            <h4 className="text-[10px] font-bold text-slate-900">Sugerencia del Sistema:</h4>
-                            <p className="text-[9px] text-slate-500 leading-normal mt-0.5">
-                              El sistema recomienda citar a tutorías presenciales a alumnos con notas inferiores a 65.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <ProtectedRoute allowedRoles={[3]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <DocenteDashboard />
             </ProtectedRoute>
           )}
 
-          {/* TAB 4: AVENTURA KIDS (ALUMNO/PADRE: ROL 4 O 5) */}
+          {/* TAB 4: AVENTURA KIDS (ALUMNO: ROL 4) */}
           {activeTab === 'aventura-kids' && (
-            <ProtectedRoute allowedRoles={[4, 5]} onFallbackNavigate={() => setActiveTab('aventura-kids')}>
-              <StudentAdventureModule />
+            <ProtectedRoute allowedRoles={[4]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <AlumnoDashboard />
+            </ProtectedRoute>
+          )}
+
+          {/* TAB 4.5: PORTAL DE PADRES (PADRE: ROL 5) */}
+          {activeTab === 'parent-portal' && (
+            <ProtectedRoute allowedRoles={[5]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
+              <ParentDashboard />
             </ProtectedRoute>
           )}
 
           {/* TAB 4: VISUALIZAR BOLETA (ALUMNO/PADRE: ROL 4 O 5) */}
           {activeTab === 'boleta' && (
-            <ProtectedRoute allowedRoles={[4, 5]} onFallbackNavigate={() => setActiveTab('boleta')}>
+            <ProtectedRoute allowedRoles={[4, 5]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
               <div className="space-y-6">
                 <div>
                   <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
@@ -757,7 +486,7 @@ export default function App() {
 
           {/* TAB 5: MÉTRICAS IA (ALUMNO/PADRE: ROL 4 O 5) */}
           {activeTab === 'ia-metrics' && (
-            <ProtectedRoute allowedRoles={[4, 5]} onFallbackNavigate={() => setActiveTab('boleta')}>
+            <ProtectedRoute allowedRoles={[4, 5]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
               <div className="space-y-6">
                 <div>
                   <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">

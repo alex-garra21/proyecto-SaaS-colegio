@@ -1,0 +1,12 @@
+{
+  "endpoint": "/api/v1/grades/save-score",
+  "method": "POST",
+  "payload": {
+    "estudianteId": "ALU-10294",
+    "cursoId": "CUR-MAT",
+    "unidadEvaluacion": 1,
+    "actividadId": "ACT-772",
+    "punteoAsignado": 8.5,
+    "punteoMaximo": 10.0
+  }
+}
