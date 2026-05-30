@@ -1,55 +1,26 @@
-# ============================================================================
-# REGLAS DEL PROYECTO: SISTEMA DE GESTIÓN ESCOLAR (SIGE)
-# ============================================================================
+📋 REGLAS DE COPYWRITING, BRANDING Y TONO DE VOZ (EDUWONDER CORE)
+Glosario Oficial de Marca y Nombres Comerciales:
 
-## 1. Arquitectura General y Stack Tecnológico
-- **Estructura del Monorepo:** Dividido estrictamente en `/frontend` (cliente) y `/backend` (servidor de API).
-- **Ecosistema Frontend:** React + Vite + TypeScript + Tailwind CSS (Gestionado exclusivamente con `pnpm`).
-- **Ecosistema Backend:** Node.js + Express + TypeScript + `mssql` (Gestionado exclusivamente con `pnpm`).
-- **Infraestructura de Datos:** Servidor remoto SQL Server (Somee) estructurado en Tercera Forma Normal (3FN) con Roles de Base de Datos nativos.
+El nombre comercial del ecosistema global y del portal de acceso es estrictamente "EduWonder".
 
----
+La cabecera, módulos y controles del panel del Administrador y Personal Académico deben utilizar de forma unificada la denominación "EduAdmin Pro".
 
-## 2. Patrones Obligatorios de Backend y Base de Datos (Robustez, Seguridad y Auditoría)
-- **Seguridad Criptográfica:** El acceso al sistema se valida mediante `sp_AutenticarUsuario` y las altas con `sp_RegistrarUsuario`. Las contraseñas jamás se manejan en texto plano; se computan en el motor mediante `HASHBYTES('SHA2_256', password + Salt)`.
-- **Integridad Transaccional:** Todo endpoint del backend que realice mutaciones o alteraciones de datos en SQL Server debe estar encapsulado en transacciones implícitas o explícitas utilizando bloques `TRY...CATCH` para asegurar la atomicidad de las operaciones.
-- **Políticas de Resguardo e Inmutabilidad:** Queda estrictamente prohibido el uso de eliminaciones físicas (`DELETE`) directas sobre tablas críticas de la aplicación. Se debe depender de bajas lógicas alterando el bit `Estado` y delegar el resguardo histórico hacia la tabla `Bitacora` mediante disparadores (`TRIGGERS`) o procedimientos almacenados dedicados.
-- **Formato de Auditoría:** Las inserciones en la tabla `Bitacora` deben respetar el formato normalizado de strings delimitados por pipes (`|`), capturando de forma obligatoria el ID del usuario administrador ejecutor (ej: `'IdUsuario Afectado: X | Estado Resultante: Y'`).
-- **Optimización y Telemetría:** Las consultas complejas o reportes masivos deben optimizarse utilizando Expresiones de Tabla Comunes (CTEs). Toda ejecución crítica debe registrar sus tiempos de respuesta en la tabla `MonitoreoConsulta`.
+El módulo, paneles y flujos destinados a los estudiantes deben bautizarse, maquetarse y llamarse únicamente bajo la marca "Aventura Kids".
 
----
+Restricciones de Etiquetas Comerciales:
 
-## 3. Estructura de Frontend (Metodología Atomic Design)
-El desarrollo en `/frontend/src/components/` debe seguir estrictamente la jerarquía de diseño atómico para garantizar la reutilización y el orden limpio del código:
-- **atoms/**: Componentes visuales mínimos e indivisibles de control puro (ej. `CustomSelect.tsx`, `Button.tsx`, `Badge.tsx`, `Toast.tsx`). No se les permite inyectar lógica de negocio global o llamadas directas a APIs.
-- **molecules/**: Conjunto de dos o más átomos combinados para formar una unidad funcional reutilizable (ej. `FilterBar.tsx` agrupando buscador y selectores, `PaginationControls.tsx`).
-- **organisms/**: Estructuras de alta complejidad compuestas por moléculas y átomos que interactúan entre sí (ej. `UserTable.tsx`, `Sidebar.tsx`, `Navbar.tsx`).
-- **modules/ o pages/**: Vistas de alto nivel encargadas de orquestar los componentes, gestionar el estado de los contextos y consumir los servicios endpoints de la API (ej. `@Usuarios.tsx`).
+Queda TERMINANTEMENTE PROHIBIDO concatenar el sufijo "• SaaS" o leyendas corporativas similares en cualquier componente visual o metadato del frontend.
 
----
+El uso de siglas técnicas permitidas para subtítulos, pies de página o reportes de la institución es exclusivamente "SIGE" (respetando las mayúsculas y sin puntos de separación), conviviendo de manera armónica debajo del branding de EduWonder.
 
-## 4. Acabado Premium, UI de Alta Fidelidad y Microinteracciones
-- **Prohibición de Selectores Nativos:** Queda terminantemente prohibido el uso de la etiqueta estándar `<select>` del navegador en interfaces principales. Toda selección debe gestionarse mediante el átomo `CustomSelect`, implementando menús flotantes con posicionamiento absoluto (`absolute z-50`), sombras suavizadas (`shadow-xl`) y rotación animada de flechas indicadoras.
-- **Mecanismos de Defensa en UX (Auto-Bloqueo):** Las filas de tablas administrativas que correspondan al usuario logueado en la sesión actual deben inhabilitar automáticamente (`disabled`, `pointer-events-none` y opacidad reducida) los controles críticos de cambio de rol o toggle de estado, previniendo accidentes de auto-bloqueo de privilegios en caliente.
-- **Fluidez Visual:** Cada elemento interactivo (botones, enlaces, filas, switches) debe integrar transiciones de cambio de estado CSS fluidas mediante la utilería `transition-all duration-300 ease-in-out`.
+Formatos Financieros Locales:
 
----
+Toda visualización de saldos, cobros, matrículas o estados financieros en el panel de Padres de Familia ('family') debe utilizar la moneda nacional Quetzales (Q), mapeando explícitamente el estatus como "Solvente" o "Inactivo" según corresponda en la base de datos.
 
-## 5. Política de Notificaciones (UX Emocional y Toasts Personalizados)
-Está estrictamente prohibido invocar alertas nativas (`alert()`) o generar respuestas genéricas que expongan IDs numéricos internos del motor hacia el cliente. Todo feedback de éxito debe ser humanizado y contextualizado utilizando las propiedades de identidad del objeto afectado:
-- **Altas/Registros Exitosos:** El mensaje debe celebrar la acción incluyendo el nombre propio (ej: `¡Usuario ${usuario.Nombre} registrado correctamente!`).
-- **Cambios de Estado Lógico (Toggle Status):** Debe mapear explícitamente el bit resultante para conjugar el verbo adecuado (ej, si pasa a Activo: `"Se ha activado el usuario ${usuario.Nombre} exitosamente."` | si pasa a Inactivo: `"Se ha desactivado el usuario ${usuario.Nombre} de la plataforma."`).
-- **Modificaciones de Atributos/Roles:** Debe traducir el ID técnico a la etiqueta comercial legible por el usuario antes de disparar la notificación (ej: `"Se ha cambiado el rol de ${usuario.Nombre} a ${nombreRolComercial}."`).
-- **Ubicación y Estilo:** Los Toasts de éxito (verdes) o error (rojos) deben renderizarse de forma asíncrona exclusivamente en la esquina inferior derecha, respetando la línea gráfica del colegio.
+Gobernanza del Tono Lingüístico por Rol:
 
----
+Administrativo ('admin'): Tono formal, serio e institucional (ej: "Gestión de Profesores", "Bitácora Transaccional").
 
-## 6. Centralización de Estilos, Responsividad y Modo Oscuro
-- **Gobernanza de Color (Tokens de UI):** Queda prohibido hardcodear códigos de color hexadecimales directamente en los componentes. Los colores, contrastes y acentos visuales deben mapearse y heredarse directamente desde el archivo centralizador `frontend/src/theme/designTokens.ts`.
-- **Soporte Adaptativo Inteligente (Modo Oscuro):** Todo componente visual nuevo o refactorizado debe incluir obligatoriamente sus variantes cromáticas para el Modo Oscuro utilizando el prefijo `dark:` de Tailwind CSS v4, respondiendo en tiempo real a las preferencias del sistema operativo del dispositivo.
-- **Diseño Líquido y Responsivo:** Todo layout de visualización debe estructurarse con un enfoque móvil primero (`mobile-first`), empleando cajas flexibles (`Flexbox`) responsivas o mallas (`Grid`) adaptativas configuradas mediante breakpoints estandarizados (`sm:`, `md:`, `lg:`).
+Docente ('teacher'): Tono profesional orientado a la productividad académica (ej: "Libro de Calificaciones", "Notas y Reportes").
 
-### 📋 REGLAS DE COPYWRITING Y BRANDING
-- El nombre oficial y único del sistema para subtítulos, encabezados y pies de página es estrictamente "Sistema Integral de Gestión Escolar".
-- Queda TERMINANTEMENTE PROHIBIDO concatenar el sufijo "• SaaS" o cualquier etiqueta comercial similar en cualquier componente visual o metadato del proyecto.
-- El uso de siglas permitido en todo el software es únicamente "SIGE" (respetando estrictamente las mayúsculas y sin puntos de separación).
+Estudiante ('student'): Tono gamificado, entusiasta y lleno de refuerzo positivo (ej: "¡Hola, Explorador!", "Mis Misiones de Hoy", "Mis Medallas Ganadas").
