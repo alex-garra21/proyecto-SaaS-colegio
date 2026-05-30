@@ -40,11 +40,11 @@ GO
 -- 3. CREACIÓN IDEMPOTENTE DE ESTRUCTURAS TRANSACCIONALES (OLTP) EN 3FN
 -- ============================================================================
 
--- Tabla 1: Rol
+-- Tabla 1: Rol (Forzado Estricto sin desalineación de IDs para EduWonder)
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Rol]') AND type in (N'U'))
 BEGIN
     CREATE TABLE Rol (
-        IdRol INT IDENTITY(1,1) NOT NULL,
+        IdRol INT NOT NULL, -- Removido IDENTITY para congelar la integridad del RBAC
         NombreRol VARCHAR(50) NOT NULL,
         Descripcion VARCHAR(255) NULL,
         CONSTRAINT PK_Rol PRIMARY KEY (IdRol),
@@ -313,23 +313,23 @@ END
 GO
 
 -- ============================================================================
--- 4. POBLADO IDEMPOTENTE DE CATÁLOGOS BASE
+-- 4. POBLADO IDEMPOTENTE DE CATÁLOGOS BASE (IDs Fijos para EduWonder)
 -- ============================================================================
 
-IF NOT EXISTS (SELECT 1 FROM Rol WHERE NombreRol = 'Administrador')
-    INSERT INTO Rol (NombreRol, Descripcion) VALUES ('Administrador', 'Control total administrativo del sistema');
+IF NOT EXISTS (SELECT 1 FROM Rol WHERE IdRol = 1)
+    INSERT INTO Rol (IdRol, NombreRol, Descripcion) VALUES (1, 'Administrador', 'Control total administrativo del sistema');
 
-IF NOT EXISTS (SELECT 1 FROM Rol WHERE NombreRol = 'Personal Académico')
-    INSERT INTO Rol (NombreRol, Descripcion) VALUES ('Personal Académico', 'Coordinación y gestión escolar');
+IF NOT EXISTS (SELECT 1 FROM Rol WHERE IdRol = 2)
+    INSERT INTO Rol (IdRol, NombreRol, Descripcion) VALUES (2, 'Personal Académico', 'Coordinación y gestión escolar');
 
-IF NOT EXISTS (SELECT 1 FROM Rol WHERE NombreRol = 'Docente / Profesor')
-    INSERT INTO Rol (NombreRol, Descripcion) VALUES ('Docente / Profesor', 'Docencia y asentado de notas');
+IF NOT EXISTS (SELECT 1 FROM Rol WHERE IdRol = 3)
+    INSERT INTO Rol (IdRol, NombreRol, Descripcion) VALUES (3, 'Docente / Profesor', 'Docencia y asentado de notas');
 
-IF NOT EXISTS (SELECT 1 FROM Rol WHERE NombreRol = 'Alumno')
-    INSERT INTO Rol (NombreRol, Descripcion) VALUES ('Alumno', 'Estudiante regular de la institución');
+IF NOT EXISTS (SELECT 1 FROM Rol WHERE IdRol = 4)
+    INSERT INTO Rol (IdRol, NombreRol, Descripcion) VALUES (4, 'Alumno', 'Estudiante regular de la institución');
 
-IF NOT EXISTS (SELECT 1 FROM Rol WHERE NombreRol = 'Padre de Familia')
-    INSERT INTO Rol (NombreRol, Descripcion) VALUES ('Padre de Familia', 'Supervisor familiar del rendimiento del alumno');
+IF NOT EXISTS (SELECT 1 FROM Rol WHERE IdRol = 5)
+    INSERT INTO Rol (IdRol, NombreRol, Descripcion) VALUES (5, 'Padre de Familia', 'Supervisor familiar del rendimiento del alumno');
 GO
 
 -- ============================================================================
@@ -411,8 +411,7 @@ BEGIN
 END;
 GO
 
--- SP 2: sp_AutenticarUsuario
--- Retorna el payload de sesión simétrico esperado por AuthContext
+-- SP 2: sp_AutenticarUsuario (Corregido y blindado criptográficamente para EduWonder)
 CREATE OR ALTER PROCEDURE sp_AutenticarUsuario
     @Correo VARCHAR(100),
     @Password VARCHAR(100)
@@ -420,16 +419,28 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @Salt UNIQUEIDENTIFIER;
+    DECLARE @PasswordHash VARBINARY(256);
     
+    -- 1. Recuperamos la sal del usuario activo únicamente si existe
     SELECT @Salt = Salt FROM Usuario WHERE Correo = @Correo AND Estado = 1;
     
     IF @Salt IS NOT NULL
     BEGIN
-        SELECT u.IdUsuario, u.NombreCompleto, u.Correo, ur.IdRol, u.Estado
+        -- 2. Calculamos el hash de forma aislada y controlada antes del filtro (Salt + Password)
+        SET @PasswordHash = HASHBYTES('SHA2_256', CAST(@Salt AS VARCHAR(36)) + @Password);
+
+        -- 3. Retornamos el payload simétrico esperado por el AuthContext del cliente real
+        SELECT 
+            u.IdUsuario, 
+            u.NombreCompleto, -- Mapea directo al saludo de la UI
+            u.Correo, 
+            ur.IdRol, 
+            u.Estado
         FROM Usuario u
         INNER JOIN UsuarioRol ur ON u.IdUsuario = ur.IdUsuario
         WHERE u.Correo = @Correo 
-          AND u.PasswordHash = HASHBYTES('SHA2_256', CAST(@Salt AS VARCHAR(36)) + @Password);
+          AND u.PasswordHash = @PasswordHash
+          AND u.Estado = 1;
     END
 END;
 GO
@@ -612,4 +623,16 @@ BEGIN
         )
     FROM deleted d;
 END;
+GO
+
+
+USE SistemaColegioLocal;
+GO
+
+-- Inserción directa e independiente de los 5 usuarios mínimos obligatorios
+EXEC sp_RegistrarUsuario @Nombres = 'Alexander', @Apellidos = 'Reyes Admin', @Correo = 'admin@eduwonder.com', @Password = 'Edu1234', @IdRol = 1;
+EXEC sp_RegistrarUsuario @Nombres = 'Luis', @Apellidos = 'Rivera', @Correo = 'admin.prof@eduwonder.com', @Password = 'Edu1234', @IdRol = 2;
+EXEC sp_RegistrarUsuario @Nombres = 'Roberto', @Apellidos = 'Gonzales', @Correo = 'prof@eduwonder.com', @Password = 'Edu1234', @IdRol = 3;
+EXEC sp_RegistrarUsuario @Nombres = 'Carlos', @Apellidos = 'Requena', @Correo = 'alumno@eduwonder.com', @Password = 'Edu1234', @IdRol = 4;
+EXEC sp_RegistrarUsuario @Nombres = 'Eduardo', @Apellidos = 'garcia', @Correo = 'familia@eduwonder.com', @Password = 'Edu1234', @IdRol = 5;
 GO
