@@ -12,7 +12,10 @@ import {
   createVinculacion,
   getMaterias,
   createMateria,
-  getCiclos
+  getCiclos,
+  createCiclo,
+  activarCiclo,
+  deleteMateria
 } from '../controllers/adminController.js';
 
 const router: Router = Router();
@@ -31,6 +34,9 @@ router.post('/matriculas', createMatricula);
 router.post('/vinculaciones', createVinculacion);
 router.get('/materias', getMaterias);
 router.post('/materias', createMateria);
+router.delete('/materias/:id', deleteMateria);
 router.get('/ciclos', getCiclos);
+router.post('/ciclos', createCiclo);
+router.patch('/ciclos/:id/activar', activarCiclo);
 
 export default router;

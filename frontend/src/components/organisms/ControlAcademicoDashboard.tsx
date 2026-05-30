@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, BookOpen, Layers, Calendar, 
   Users, CheckSquare, ShieldAlert, 
-  DollarSign, Receipt, AlertCircle 
+  DollarSign, Receipt, AlertCircle, Trash2
 } from 'lucide-react';
 import CustomSelect from '../atoms/CustomSelect';
 import { useToast } from '../../context/ToastContext';
@@ -83,6 +83,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
   const [matriculas, setMatriculas] = useState<StudentMatriculaRow[]>([]);
   const [cursos, setCursos] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [docentes, setDocentes] = useState<any[]>([]);
   const [ciclosEscolares, setCiclosEscolares] = useState<CicloEscolarRow[]>([]);
 
   // Estados de carga
@@ -90,22 +91,17 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
 
   // --- ESTADOS PARA CATÁLOGOS BASE ---
   const [nuevoCursoNombre, setNuevoCursoNombre] = useState('');
-  const [selectedGrado, setSelectedGrado] = useState<number>(1); // 1 = Primero, 2 = Segundo, 3 = Tercero
 
   const gradoOptions = [
     { value: 1, label: 'Primero Básico' },
     { value: 2, label: 'Segundo Básico' },
     { value: 3, label: 'Tercero Básico' }
   ];
-
-  const [ciclos] = useState<{ anio: number; activo: boolean }[]>([
-    { anio: 2025, activo: false },
-    { anio: 2026, activo: true }
-  ]);
+  const [nuevoCicloAnio, setNuevoCicloAnio] = useState('');
 
   // --- ESTADOS PARA SECCIONES ---
   const [seccionGrado, setSeccionGrado] = useState<number>(1);
-  const seccionCiclo = 2026;
+  const [seccionCiclo, setSeccionCiclo] = useState<string>('');
   const [seccionLetra, setSeccionLetra] = useState<string>('A');
   const [seccionAula, setSeccionAula] = useState<string>('Aula 101');
 
@@ -121,7 +117,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
   const [colisionBackendError, setColisionBackendError] = useState<boolean>(false);
 
   // --- ESTADOS PARA VINCULACIÓN Y MATRÍCULA ---
-  const [selectedStudent, setSelectedStudent] = useState<StudentMatriculaRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [matriculaSeccion, setMatriculaSeccion] = useState<string>('');
   const [tutorSeleccionado, setTutorSeleccionado] = useState<string>('');
 
@@ -187,6 +183,13 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
         setUsuarios(data);
       }
 
+      // 8. Cargar docentes de aula (activos)
+      const resDoc = await fetch('http://localhost:4000/api/users/docentes-activos', { headers });
+      if (resDoc.ok) {
+        const data = await resDoc.json();
+        setDocentes(data);
+      }
+
       // 7. Cargar ciclos escolares
       const resCic = await fetch('http://localhost:4000/api/admin/ciclos', { headers });
       if (resCic.ok) {
@@ -207,11 +210,10 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
 
   // --- CONFIGURAR VALORES DE ENTRADA POR DEFECTO ---
   useEffect(() => {
-    if (usuarios.length > 0 && !nuevoPeriodoDocente) {
-      const docs = usuarios.filter(u => u.IdRol === 3 || u.IdRol === 2);
-      if (docs.length > 0) setNuevoPeriodoDocente(String(docs[0].IdUsuario));
+    if (docentes.length > 0 && !nuevoPeriodoDocente) {
+      setNuevoPeriodoDocente(String(docentes[0].IdUsuario));
     }
-  }, [usuarios, nuevoPeriodoDocente]);
+  }, [docentes, nuevoPeriodoDocente]);
 
   useEffect(() => {
     if (cursos.length > 0 && !nuevoPeriodoCurso) {
@@ -239,15 +241,13 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
   }, [secciones, matriculaSeccion]);
 
   useEffect(() => {
-    if (ciclosEscolares.length > 0 && !nuevoPeriodoCiclo) {
+    if (ciclosEscolares.length > 0) {
       const activo = ciclosEscolares.find(c => c.estado);
-      if (activo) {
-        setNuevoPeriodoCiclo(String(activo.id));
-      } else {
-        setNuevoPeriodoCiclo(String(ciclosEscolares[0].id));
-      }
+      const cicloActivoId = activo ? String(activo.id) : String(ciclosEscolares[0].id);
+      if (!nuevoPeriodoCiclo) setNuevoPeriodoCiclo(cicloActivoId);
+      if (!seccionCiclo) setSeccionCiclo(cicloActivoId);
     }
-  }, [ciclosEscolares, nuevoPeriodoCiclo]);
+  }, [ciclosEscolares, nuevoPeriodoCiclo, seccionCiclo]);
 
   useEffect(() => {
     const encargados = usuarios.filter(u => u.IdRol === 5);
@@ -287,8 +287,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
         method: 'POST',
         headers,
         body: JSON.stringify({
-          nombre: nuevoCursoNombre.trim(),
-          idGrado: Number(selectedGrado)
+          nombre: nuevoCursoNombre.trim()
         })
       });
 
@@ -299,6 +298,68 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
       loadData();
     } catch (err: any) {
       showToast(err.message || 'Error al registrar curso.', 'error');
+    }
+  };
+
+  // 1.1 Eliminar Curso
+  const handleDeleteCurso = async (id: number) => {
+    if (!window.confirm('¿Estás seguro de eliminar este curso del catálogo global?')) return;
+    try {
+      const res = await fetch(`http://localhost:4000/api/admin/materias/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Fallo al eliminar curso. Verifica restricciones foráneas.');
+      showToast('Curso eliminado con éxito.', 'success');
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al eliminar curso.', 'error');
+    }
+  };
+
+  // 1.2 Agregar Ciclo Escolar
+  const handleAddCiclo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevoCicloAnio) {
+      showToast('Por favor, ingresa el año del ciclo.', 'error');
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:4000/api/admin/ciclos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ anio: Number(nuevoCicloAnio) })
+      });
+      if (!res.ok) throw new Error('Fallo al registrar ciclo.');
+      showToast(`Ciclo ${nuevoCicloAnio} registrado con éxito.`, 'success');
+      setNuevoCicloAnio('');
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al registrar ciclo.', 'error');
+    }
+  };
+
+  // 1.3 Activar Ciclo Escolar
+  const handleActivarCiclo = async (id: number, anio: number) => {
+    if (!window.confirm('⚠️ ¿Estás seguro de cambiar el ciclo activo? Esto afectará los procesos de matrículas y reportería vigentes.')) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`http://localhost:4000/api/admin/ciclos/${id}/activar`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Fallo al activar ciclo.');
+      showToast(`Ciclo ${anio} activado globalmente.`, 'success');
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al activar ciclo.', 'error');
     }
   };
 
@@ -321,8 +382,8 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
         headers,
         body: JSON.stringify({
           idGrado: Number(seccionGrado),
+          idCiclo: Number(seccionCiclo),
           letraSeccion: seccionLetra.trim().toUpperCase(),
-          anio: seccionCiclo,
           codigoAula: seccionAula.trim()
         })
       });
@@ -386,11 +447,26 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
     }
   };
 
-  // 4. Matricular Alumno Seleccionado
+  // --- HELPERS PARA SELECCIÓN MASIVA ---
+  const toggleStudentSelection = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(selectedId => selectedId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === matriculas.length && matriculas.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(matriculas.map(m => m.id));
+    }
+  };
+
+  // 4. Matricular Alumnos Seleccionados
   const handleMatricular = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent) {
-      showToast('Selecciona un estudiante de la tabla de matrículas.', 'error');
+    if (selectedIds.length === 0) {
+      showToast('Selecciona al menos un estudiante de la tabla de matrículas.', 'error');
       return;
     }
     if (!matriculaSeccion) {
@@ -408,15 +484,15 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
         method: 'POST',
         headers,
         body: JSON.stringify({
-          idAlumno: Number(selectedStudent.id),
+          idAlumnos: selectedIds,
           idSeccion: Number(matriculaSeccion)
         })
       });
 
       if (!res.ok) throw new Error('Fallo al asentar matrícula.');
 
-      showToast(`Alumno "${selectedStudent.nombre}" matriculado exitosamente.`, 'success');
-      setSelectedStudent(null);
+      showToast(`Se han matriculado ${selectedIds.length} alumno(s) exitosamente.`, 'success');
+      setSelectedIds([]);
       loadData();
     } catch (err: any) {
       showToast(err.message || 'Error al asentar matrícula.', 'error');
@@ -426,8 +502,8 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
   // 5. Vincular Encargado / Tutor
   const handleVincularTutor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent) {
-      showToast('Selecciona un estudiante de la tabla para vincularlo.', 'error');
+    if (selectedIds.length === 0) {
+      showToast('Selecciona al menos un estudiante de la tabla para vincularlo.', 'error');
       return;
     }
     if (!tutorSeleccionado) {
@@ -445,15 +521,15 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
         method: 'POST',
         headers,
         body: JSON.stringify({
-          idAlumno: Number(selectedStudent.id),
+          idAlumnos: selectedIds,
           idPadre: Number(tutorSeleccionado)
         })
       });
 
       if (!res.ok) throw new Error('Fallo al vincular tutor.');
 
-      showToast(`Encargado asociado con éxito al estudiante "${selectedStudent.nombre}".`, 'success');
-      setSelectedStudent(null);
+      showToast(`Encargado asociado con éxito a ${selectedIds.length} estudiante(s).`, 'success');
+      setSelectedIds([]);
       loadData();
     } catch (err: any) {
       showToast(err.message || 'Error al vincular tutor familiar.', 'error');
@@ -539,16 +615,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Grado Recomendado (Filtro)
-                  </label>
-                  <CustomSelect
-                    options={gradoOptions}
-                    value={selectedGrado}
-                    onChange={(val) => setSelectedGrado(val)}
-                  />
-                </div>
+
 
                 <button
                   type="submit"
@@ -570,9 +637,18 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   <p className="text-xs text-slate-400 italic py-2">No hay cursos registrados en el catálogo.</p>
                 ) : (
                   cursos.map(c => (
-                    <div key={c.id} className="py-2.5 flex justify-between items-center text-xs">
-                      <span className="font-semibold text-slate-800">{c.nombre}</span>
-                      <span className="font-mono text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">ID: {c.id}</span>
+                    <div key={c.id} className="py-2.5 flex justify-between items-center text-xs group">
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">ID: {c.id}</span>
+                        <span className="font-semibold text-slate-800">{c.nombre}</span>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteCurso(c.id)}
+                        className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition opacity-0 group-hover:opacity-100"
+                        title="Eliminar curso"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   ))
                 )}
@@ -587,34 +663,85 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
             <div className="bg-white border border-slate-150 rounded-lg p-6 shadow-sm text-left">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-2">
                 <Calendar size={16} className="text-[#2563EB]" />
-                Ciclos Escolares Activos
+                Gestión de Ciclos Escolares
               </h3>
               <p className="text-[11px] text-[#64748B] mb-4">
                 Administra e inicializa ciclos académicos. Solo los ciclos activos permiten matrículas y registro financiero.
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
-                {ciclos.map(c => (
-                  <div
-                    key={c.anio}
-                    className={`p-4 rounded-lg border text-left flex flex-col justify-between h-28 transition ${
-                      c.activo
-                        ? 'border-[#2563EB] bg-blue-50/20'
-                        : 'border-slate-200 bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      Ciclo Lectivo
-                    </span>
-                    <span className="text-3xl font-black text-slate-900 block mt-1">{c.anio}</span>
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mt-2 ${
-                      c.activo ? 'text-[#2563EB]' : 'text-[#64748B]'
-                    }`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${c.activo ? 'bg-[#2563EB]' : 'bg-slate-400'}`}></span>
-                      {c.activo ? 'Ciclo Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                ))}
+              <form onSubmit={handleAddCiclo} className="flex items-end gap-3 mb-6">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Año del Ciclo
+                  </label>
+                  <input
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    required
+                    value={nuevoCicloAnio}
+                    onChange={(e) => setNuevoCicloAnio(e.target.value)}
+                    placeholder="ej. 2027"
+                    className="block w-full rounded-[4px] border border-slate-200 py-2 px-3 text-slate-900 text-xs focus:border-[#2563EB] focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="flex items-center justify-center gap-2 rounded-[4px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white py-2 px-4 text-xs font-bold transition shadow-sm h-[34px] w-[180px]"
+                >
+                  <Plus size={14} />
+                  <span>Registrar Ciclo</span>
+                </button>
+              </form>
+
+              <div className="border border-slate-100 rounded-md overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3 py-2 border-b">ID</th>
+                      <th className="px-3 py-2 border-b">Año</th>
+                      <th className="px-3 py-2 border-b">Estado</th>
+                      <th className="px-3 py-2 border-b text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {ciclosEscolares.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-4 text-center text-slate-400 italic">No hay ciclos registrados.</td>
+                      </tr>
+                    ) : (
+                      ciclosEscolares.map((c) => (
+                        <tr key={c.id} className="hover:bg-slate-50 transition">
+                          <td className="px-3 py-2 font-mono text-[10px] font-bold text-slate-400">{c.id}</td>
+                          <td className="px-3 py-2 font-black text-slate-900">{c.anio}</td>
+                          <td className="px-3 py-2">
+                            {c.estado ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded-full">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]"></span>
+                                Activo
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                <span className="h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                                Inactivo
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {!c.estado && (
+                              <button
+                                onClick={() => handleActivarCiclo(c.id, c.anio)}
+                                className="text-[10px] font-bold uppercase text-[#2563EB] hover:text-white hover:bg-[#2563EB] border border-[#2563EB] px-2 py-1 rounded transition"
+                              >
+                                Activar
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -676,14 +803,17 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Ciclo
+                      Ciclo Activo
                     </label>
-                    <input
-                      type="number"
-                      readOnly
+                    <select
                       value={seccionCiclo}
-                      className="block w-full rounded-[4px] border border-slate-200 bg-slate-50 py-2.5 px-3 text-slate-500 text-xs focus:outline-none"
-                    />
+                      disabled
+                      className="block w-full rounded-[4px] border border-slate-200 bg-slate-50 py-2.5 px-3 text-slate-500 text-xs focus:outline-none cursor-not-allowed font-bold"
+                    >
+                      {ciclosEscolares.map(c => (
+                        <option key={c.id} value={c.id}>{c.anio} {c.estado ? '(Activo)' : ''}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
@@ -770,11 +900,11 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                       onChange={(e) => setNuevoPeriodoDocente(e.target.value)}
                       className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                     >
-                      {usuarios.filter(u => u.IdRol === 3 || u.IdRol === 2).length === 0 ? (
+                      {docentes.length === 0 ? (
                         <option value="">Cargando docentes...</option>
                       ) : (
-                        usuarios.filter(u => u.IdRol === 3 || u.IdRol === 2).map(u => (
-                          <option key={u.IdUsuario} value={u.IdUsuario}>{u.NombreCompleto}</option>
+                        docentes.map(d => (
+                          <option key={d.IdUsuario} value={d.IdUsuario}>{d.NombreCompleto}</option>
                         ))
                       )}
                     </select>
@@ -799,8 +929,8 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                     <label className="block font-semibold text-slate-500 uppercase mb-1">Ciclo Lectivo</label>
                     <select
                       value={nuevoPeriodoCiclo}
-                      onChange={(e) => setNuevoPeriodoCiclo(e.target.value)}
-                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
+                      disabled
+                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-slate-50 focus:outline-none focus:border-[#2563EB] cursor-not-allowed font-bold text-slate-600"
                     >
                       {ciclosEscolares.length === 0 ? (
                         <option value="">Cargando ciclos...</option>
@@ -933,9 +1063,9 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   <Users size={16} className="text-[#2563EB]" />
                   Nómina y Control de Matrículas
                 </h3>
-                {selectedStudent && (
+                {selectedIds.length > 0 && (
                   <span className="bg-blue-100 border border-blue-200 text-[#2563EB] text-[9px] font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
-                    Seleccionado: {selectedStudent.nombre}
+                    Seleccionados: {selectedIds.length}
                   </span>
                 )}
               </div>
@@ -946,6 +1076,14 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-150 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="py-3.5 px-4 w-10">
+                          <input 
+                            type="checkbox" 
+                            className="cursor-pointer rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
+                            checked={selectedIds.length === matriculas.length && matriculas.length > 0}
+                            onChange={toggleSelectAll}
+                          />
+                        </th>
                         <th className="py-3.5 px-4">Estudiante</th>
                         <th className="py-3.5 px-4">Sección Asignada</th>
                         <th className="py-3.5 px-4">Encargado Relacionado</th>
@@ -954,7 +1092,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                     <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                       {matriculas.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="py-8 text-center text-slate-400 italic">
+                          <td colSpan={4} className="py-8 text-center text-slate-400 italic">
                             No se encontraron registros de estudiantes en el sistema.
                           </td>
                         </tr>
@@ -962,11 +1100,20 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                         matriculas.map((m) => (
                           <tr 
                             key={m.id} 
-                            onClick={() => setSelectedStudent(m)}
+                            onClick={() => toggleStudentSelection(m.id)}
                             className={`hover:bg-blue-50/40 transition-colors cursor-pointer ${
-                              selectedStudent?.id === m.id ? 'bg-blue-50/85 font-semibold' : ''
+                              selectedIds.includes(m.id) ? 'bg-blue-50/85 font-semibold' : ''
                             }`}
                           >
+                            <td className="py-3.5 px-4">
+                              <input 
+                                type="checkbox" 
+                                className="cursor-pointer rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
+                                checked={selectedIds.includes(m.id)}
+                                onChange={() => {}}
+                                onClick={(e) => { e.stopPropagation(); toggleStudentSelection(m.id); }}
+                              />
+                            </td>
                             <td className="py-3.5 px-4">
                               <div>
                                 <span className="block text-slate-900 font-semibold">{m.nombre}</span>
@@ -1018,9 +1165,9 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
               </p>
 
               <form onSubmit={handleMatricular} className="space-y-4">
-                {selectedStudent && (
+                {selectedIds.length > 0 && (
                   <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-[#2563EB]">
-                    <span>Asignar matrícula a: <strong>{selectedStudent.nombre}</strong></span>
+                    <span>Asignar matrícula a: <strong>{selectedIds.length === 1 ? matriculas.find(m => m.id === selectedIds[0])?.nombre : `${selectedIds.length} alumnos seleccionados`}</strong></span>
                   </div>
                 )}
 
@@ -1042,15 +1189,15 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
 
                 <button
                   type="submit"
-                  disabled={!selectedStudent}
+                  disabled={selectedIds.length === 0}
                   className={`flex w-full items-center justify-center gap-2 rounded-[4px] py-2.5 text-xs font-bold transition shadow-sm cursor-pointer ${
-                    selectedStudent 
+                    selectedIds.length > 0 
                       ? 'bg-slate-950 hover:bg-slate-800 text-white' 
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}
                 >
                   <CheckSquare size={14} />
-                  <span>Matricular Alumno Seleccionado</span>
+                  <span>Matricular Alumno(s)</span>
                 </button>
               </form>
             </div>
@@ -1066,9 +1213,9 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
               </p>
 
               <form onSubmit={handleVincularTutor} className="space-y-4">
-                {selectedStudent && (
+                {selectedIds.length > 0 && (
                   <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-[#2563EB]">
-                    <span>Asociar tutor a: <strong>{selectedStudent.nombre}</strong></span>
+                    <span>Asociar tutor a: <strong>{selectedIds.length === 1 ? matriculas.find(m => m.id === selectedIds[0])?.nombre : `${selectedIds.length} alumnos seleccionados`}</strong></span>
                   </div>
                 )}
 
@@ -1090,9 +1237,9 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
 
                 <button
                   type="submit"
-                  disabled={!selectedStudent}
+                  disabled={selectedIds.length === 0}
                   className={`flex w-full items-center justify-center gap-2 rounded-[4px] py-2.5 text-xs font-bold transition shadow-sm cursor-pointer ${
-                    selectedStudent 
+                    selectedIds.length > 0 
                       ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white' 
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getUsers, createUser, updateUserRole, toggleUserStatus, deleteUser, generateInstitutionalEmail } from '../controllers/userController.js';
+import { getUsers, getDocentesActivos, createUser, updateUserRole, toggleUserStatus, deleteUser, generateInstitutionalEmail } from '../controllers/userController.js';
 import { authenticateToken, requireAdminOrControlAcademico } from '../middleware/authMiddleware.js';
 
 const router: Router = Router();
@@ -9,6 +9,7 @@ router.use(authenticateToken as any);
 router.use(requireAdminOrControlAcademico as any);
 
 router.get('/', getUsers as any);
+router.get('/docentes-activos', getDocentesActivos as any);
 router.get('/generar-correo', generateInstitutionalEmail as any);
 router.post('/', createUser as any);
 router.put('/:id/role', updateUserRole as any);

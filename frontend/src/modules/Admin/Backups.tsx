@@ -25,6 +25,10 @@ export default function Backups() {
   const [automatedStatus, setAutomatedStatus] = useState<string | null>(null);
   const [isDownloadingAutomated, setIsDownloadingAutomated] = useState(false);
 
+  // Estados para Restauración
+  const [selectedRestoreFile, setSelectedRestoreFile] = useState<File | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+
   const fetchBackupData = async () => {
     try {
       const statsRes = await fetch('http://localhost:4000/api/backup/stats', {
@@ -97,25 +101,17 @@ export default function Backups() {
 
       // Descargar el archivo binario mediante stream asíncrono seguro
       const blob = await res.blob();
-      const contentDisposition = res.headers.get('Content-Disposition');
-      let filename = 'SIGE_Backup_Manual.bak';
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename=(.+)/i);
-        if (match && match[1]) {
-          filename = match[1].trim();
-        }
-      }
-
+      
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `SIGE_Backup_Manual_${new Date().toISOString().split('T')[0]}.bak`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
       window.URL.revokeObjectURL(url);
 
-      showToast(`¡Respaldo ${filename} generado y descargado con éxito!`, 'success');
+      showToast(`¡Respaldo físico generado y descargado con éxito!`, 'success');
       
       // Refrescar historial, tamaño y ciclos
       await fetchBackupData();
@@ -205,6 +201,49 @@ export default function Backups() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedRestoreFile(e.target.files[0]);
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!selectedRestoreFile) return;
+
+    setIsRestoring(true);
+    showToast('Iniciando restauración de base de datos. Por favor espera...', 'success');
+
+    const formData = new FormData();
+    formData.append('backupFile', selectedRestoreFile);
+
+    try {
+      const res = await fetch('http://localhost:4000/api/backup/restore', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData?.message || 'Error al restaurar backup');
+      }
+
+      showToast('¡Base de datos restaurada con éxito! Reconectando...', 'success');
+      
+      setTimeout(() => {
+        localStorage.clear();
+        window.location.href = '/login';
+      }, 1500);
+
+    } catch (err: any) {
+      console.error(err);
+      showToast(`Error de restauración: ${err.message}`, 'error');
+      setIsRestoring(false);
+    }
+  };
+
   const formattedDate = new Date().toLocaleDateString('es-GT', {
     weekday: 'long',
     year: 'numeric',
@@ -237,7 +276,7 @@ export default function Backups() {
         {/* Columna Principal Izquierda (2/3 de ancho) */}
         <div className="lg:col-span-2 space-y-6">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 md:grid-cols-2 gap-6">
             
             {/* Tarjeta de Formulario de Generación Manual */}
             <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 shadow-sm flex flex-col items-center justify-between text-center min-h-[300px]">
@@ -313,6 +352,47 @@ export default function Backups() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
                       <span>Descargar Copia de 30 mins</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Tarjeta de Restauración de BD */}
+            <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 shadow-sm flex flex-col items-center justify-between text-center min-h-[300px]">
+              <div className="flex flex-col items-center">
+                <div className="h-14 w-14 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-700">
+                  <ShieldCheck size={24} className="text-blue-500 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-2">
+                  Restauración y Recuperación de la BD
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                  Carga un archivo de respaldo físico <code className="font-mono text-[9px] bg-slate-50 dark:bg-slate-800 p-0.5 rounded">.bak</code> para restaurar completamente la base de datos a un estado previo.
+                </p>
+              </div>
+
+              <div className="w-full space-y-3">
+                <label className="block w-full text-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <input type="file" accept=".bak" className="hidden" onChange={handleFileChange} />
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block truncate">
+                    {selectedRestoreFile ? selectedRestoreFile.name : 'Seleccionar archivo .bak'}
+                  </span>
+                </label>
+                <button
+                  onClick={handleRestoreBackup}
+                  disabled={isRestoring || !selectedRestoreFile}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white px-4 py-2.5 text-xs font-bold shadow-md hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer font-sans"
+                >
+                  {isRestoring ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Restaurando BD...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Database size={13} />
+                      <span>⚙️ Cargar y Restaurar Sistema</span>
                     </>
                   )}
                 </button>

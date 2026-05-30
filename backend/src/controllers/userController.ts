@@ -45,6 +45,28 @@ export async function getUsers(req: AuthenticatedRequest, res: Response): Promis
   }
 }
 
+export async function getDocentesActivos(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        u.IdUsuario,
+        u.NombreCompleto,
+        u.Correo,
+        r.NombreRol
+      FROM Usuario u
+      INNER JOIN UsuarioRol ur ON u.IdUsuario = ur.IdUsuario
+      INNER JOIN Rol r ON ur.IdRol = r.IdRol
+      WHERE r.NombreRol = 'Profesor' AND u.Estado = 1
+      ORDER BY u.NombreCompleto ASC
+    `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al consultar docentes activos.', error: error?.message });
+  }
+}
+
 export async function createUser(req: AuthenticatedRequest, res: Response): Promise<void> {
   const { nombres, apellidos, correo, password, idRol } = req.body as {
     nombres?: string;

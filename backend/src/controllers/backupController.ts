@@ -233,44 +233,61 @@ export async function generarBackupWeb(req: AuthenticatedRequest, res: Response)
 
   try {
     const pool = await getPool();
-    const sizeMB = await fetchDbSizeMB(pool);
-    
-    // Calcular correlativo dinámico
-    const countResult = await pool.request().query<{ BackupCount: number }>(`
-      SELECT COUNT(*) AS BackupCount FROM Bitacora WHERE Accion = 'BACKUP';
+    console.log(`[BACKUP] Generando respaldo físico V2 en: C:\\Backups_SIGE_Temp\\`);
+    const result = await pool.request().query<{ RutaArchivoGenerado: string }>(`
+      EXEC sp_GenerarBackupCompletoV2 @RutaCarpeta = 'C:\\Backups_SIGE_Temp\\';
     `);
-    const correlativo = (countResult.recordset[0]?.BackupCount ?? 0) + 1;
-    
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const dateSuffix = `${year}${month}${day}`;
-    const filename = `SIGE_Backup_${correlativo}_${dateSuffix}.bak`;
-    
-    const dateStr = today.toISOString().replace('T', ' ').substring(0, 19);
-    const backupPayload = await generateBackupPayload(pool, sizeMB, dateStr, correlativo);
-    
+
+    const rutaArchivoGenerado = result.recordset[0]?.RutaArchivoGenerado;
+
+    if (!rutaArchivoGenerado || !fs.existsSync(rutaArchivoGenerado)) {
+      throw new Error('El motor de SQL Server no generó el archivo de respaldo físicamente o la ruta es inválida.');
+    }
+
+    const fileName = path.basename(rutaArchivoGenerado);
+
     // Registrar transaccional en la Bitácora
     await pool.request()
       .input('OperadorId', sql.Int, operadorId)
-      .input('DetalleText', sql.VarChar(255), `Respaldo físico descargado en navegador: ${filename}`)
+      .input('DetalleText', sql.VarChar(255), `Respaldo físico descargado en navegador: ${fileName}`)
       .query(`
         INSERT INTO Bitacora (IdUsuario, Accion, TablaAfectada, Detalle)
         VALUES (@OperadorId, 'BACKUP', 'DATABASE', @DetalleText)
       `);
       
+    // Transmitir binario HTTP al cliente
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     
-    res.send(Buffer.from(backupPayload, 'utf-8'));
+    const fileStream = fs.createReadStream(rutaArchivoGenerado);
+    fileStream.pipe(res);
+
+    fileStream.on('end', () => {
+      try {
+        if (fs.existsSync(rutaArchivoGenerado)) {
+          fs.unlinkSync(rutaArchivoGenerado);
+        }
+      } catch (cleanErr) {
+        console.error('Error al limpiar archivo temporal:', cleanErr);
+      }
+    });
+
+    fileStream.on('error', (streamErr) => {
+      console.error('Error durante el stream del archivo:', streamErr);
+      if (!res.headersSent) {
+        res.status(500).end();
+      }
+    });
+
   } catch (error: any) {
     console.error('Error al generar y transmitir el backup:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Fallo al procesar o transmitir el flujo del backup.',
-      error: error?.message || String(error)
-    });
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        success: false,
+        message: 'Fallo al procesar o transmitir el flujo del backup.',
+        error: error?.message || String(error)
+      });
+    }
   }
 }
 
@@ -366,6 +383,105 @@ export async function descargarBackupAutomatico(req: AuthenticatedRequest, res: 
     res.status(500).json({
       success: false,
       message: 'Error al transmitir el respaldo automático.',
+      error: error?.message || String(error)
+    });
+  }
+}
+
+// 3. Endpoint: Restauración de Base de Datos desde archivo físico
+export async function restaurarBackup(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        message: 'No se ha subido ningún archivo para la restauración.'
+      });
+      return;
+    }
+
+    const filePath = req.file.path;
+    
+    // Mover a la ruta pública neutral
+    const publicBackupDir = 'C:\\Backups_SIGE_Temp';
+    if (!fs.existsSync(publicBackupDir)) {
+      fs.mkdirSync(publicBackupDir, { recursive: true });
+    }
+    const publicFilePath = path.join(publicBackupDir, `SIGE_Backup_Manual.bak`);
+    
+    fs.copyFileSync(filePath, publicFilePath);
+
+    console.log(`[RESTORE] Ejecutando sp_RestaurarBaseDatosV2 desde ${publicFilePath}`);
+    
+    const serverEnv = process.env.DB_SERVER ?? 'localhost';
+    let serverHost = serverEnv;
+    let instanceNameStr = '';
+
+    if (serverEnv.includes('\\')) {
+      const parts = serverEnv.split('\\');
+      serverHost = (parts[0] && parts[0] !== '.') ? parts[0] : 'localhost';
+      instanceNameStr = parts[1] || '';
+    }
+    
+    const masterConfig: sql.config = {
+      user: process.env.DB_USER || '',
+      password: process.env.DB_PASSWORD || '',
+      server: serverHost,
+      database: 'master',
+      options: {
+        encrypt: false,
+        trustServerCertificate: true,
+        ...(instanceNameStr ? { instanceName: instanceNameStr } : {})
+      },
+    };
+    
+    const masterPool = new sql.ConnectionPool(masterConfig);
+    await masterPool.connect();
+
+    try {
+      await masterPool.request().query(`
+        EXEC sp_RestaurarBaseDatosV2 @RutaArchivoBak = '${publicFilePath}';
+      `);
+    } catch (restoreErr: any) {
+      console.warn('Posible desconexión esperada por SINGLE_USER (RESTORE):', restoreErr.message);
+    }
+    
+    await masterPool.close();
+    
+    console.log('[RESTORE] Restauración completada exitosamente.');
+    
+    try {
+       const pool = await getPool();
+       await pool.request().query(`
+          INSERT INTO Bitacora (IdUsuario, Accion, TablaAfectada, Detalle)
+          VALUES (
+              ${req.user?.IdUsuario || 'NULL'},
+              'RESTORE',
+              'DATABASE',
+              'Restauración del sistema desde el archivo: ${req.file.originalname}'
+          )
+       `);
+    } catch (auditErr) {
+       console.warn('No se pudo registrar la bitácora post-restauración:', auditErr);
+    }
+
+    fs.unlink(filePath, (err) => {
+      if (err) console.error('Error eliminando archivo temporal de backup:', err);
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Sistema restaurado con éxito'
+    });
+
+  } catch (error: any) {
+    console.error('Error en restaurarBackup:', error);
+    if (req.file?.path) {
+        fs.unlink(req.file.path, () => {});
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error crítico al restaurar la base de datos.',
       error: error?.message || String(error)
     });
   }
