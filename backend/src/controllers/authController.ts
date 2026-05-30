@@ -24,10 +24,10 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
+  let jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
-    res.status(500).json({ message: 'JWT_SECRET no está configurado en el servidor.' });
-    return;
+    console.warn('WARNING: JWT_SECRET environment variable is missing. Using development secure fallback key.');
+    jwtSecret = 'EduWonderSecretFallbackKey2026_SIGE_TokenFirmaUmgFirme';
   }
 
   try {

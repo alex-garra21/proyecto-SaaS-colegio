@@ -1,7 +1,11 @@
-import cors from 'cors';
 import dotenv from 'dotenv';
-import express from 'express';
 import path from 'node:path';
+
+dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+import cors from 'cors';
+import express from 'express';
 import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -11,9 +15,6 @@ import cron from 'node-cron';
 import { runAutomatedBackup } from './controllers/backupController.js';
 import { getRoles, generateInstitutionalEmail } from './controllers/userController.js';
 import sql from 'mssql';
-
-dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const app = express();
 const port = Number(process.env.PORT) || 4000;

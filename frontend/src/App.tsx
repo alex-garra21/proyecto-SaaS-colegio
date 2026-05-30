@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import {
   ArrowRight,
   Award,
@@ -7,8 +7,6 @@ import {
   CalendarDays,
   ClipboardList,
   CreditCard,
-  Database,
-  Eye,
   FileText,
   Flame,
   GraduationCap,
@@ -20,7 +18,6 @@ import {
   LogOut,
   Mail,
   MessageSquare,
-  Pencil,
   Plus,
   Search,
   Send,
@@ -34,37 +31,18 @@ import {
   Users,
 } from 'lucide-react';
 
-type Role = 'admin' | 'teacher' | 'student' | 'family';
-type User = { email: string; name: string; role: Role };
-type View = string;
-type FamilyChild = { id: string; name: string; grade: string; average: number; balance: string; risk: string; subjects: number; avatar: string };
+import { type Role, type User, type View, type FamilyChild } from './types';
+import AdminTeachers from './components/modules/AdminTeachers';
+import AdminCreateTeacher from './components/modules/AdminCreateTeacher';
+import TeacherGrades, { TeacherPlanning } from './components/modules/TeacherGrades';
+import StudentDashboard from './components/modules/StudentDashboard';
 
-const demoUsers: Record<string, User & { password: string }> = {
-  'admin.prof@demo.com': { email: 'admin.prof@demo.com', password: '123456', name: 'Admin Profesores', role: 'admin' },
-  'profe@demo.com': { email: 'profe@demo.com', password: '123456', name: 'Profesor Demo', role: 'teacher' },
-  'alumno@demo.com': { email: 'alumno@demo.com', password: '123456', name: 'Leo Alumno', role: 'student' },
-  'familia@demo.com': { email: 'familia@demo.com', password: '123456', name: 'Familia Demo', role: 'family' },
-};
 
 const teachers = [
   { name: 'Elena Rodriguez', specialty: 'Matematicas', email: 'erodriguez@sige.edu.gt', status: 'Activo', load: 86, committees: 'Evaluacion, Olimpiadas' },
   { name: 'Marco Fuentes', specialty: 'Fisica', email: 'mfuentes@sige.edu.gt', status: 'Revision', load: 72, committees: 'Laboratorio' },
   { name: 'Sofia Morales', specialty: 'Literatura', email: 'smorales@sige.edu.gt', status: 'Activo', load: 64, committees: 'Lectura, Cultura' },
   { name: 'Daniel Herrera', specialty: 'Sociales', email: 'dherrera@sige.edu.gt', status: 'Inactivo', load: 28, committees: 'Civismo' },
-];
-
-const grades = [
-  { course: 'Matematicas', score: 92, note: 'Excelente razonamiento numerico' },
-  { course: 'Lectura', score: 88, note: 'Buen ritmo de comprension' },
-  { course: 'Ciencias', score: 94, note: 'Observacion destacada' },
-  { course: 'Arte', score: 85, note: 'Creatividad en progreso' },
-];
-
-const resources = [
-  { title: 'Fracciones con pizza', type: 'Video', minutes: 8 },
-  { title: 'Mini laboratorio de semillas', type: 'Guia', minutes: 15 },
-  { title: 'Atlas de animales', type: 'Libro digital', minutes: 20 },
-  { title: 'Plantilla de proyecto', type: 'Descargable', minutes: 4 },
 ];
 
 const familyChildren: FamilyChild[] = [
@@ -94,12 +72,7 @@ const navByRole: Record<Role, Array<{ id: View; label: string; icon: ReactNode }
   admin: [
     { id: 'admin-dashboard', label: 'Dashboard', icon: <Home size={19} /> },
     { id: 'admin-teachers', label: 'Profesores', icon: <GraduationCap size={19} /> },
-    { id: 'admin-activities', label: 'Actividades', icon: <CalendarDays size={19} /> },
-    { id: 'admin-notices', label: 'Avisos', icon: <Bell size={19} /> },
-    { id: 'admin-groups', label: 'Grupos', icon: <Users size={19} /> },
-    { id: 'admin-create-committee', label: 'Crear comision', icon: <Plus size={19} /> },
     { id: 'admin-enrollment', label: 'Inscripcion', icon: <ClipboardList size={19} /> },
-    { id: 'admin-create-teacher', label: 'Crear profesor', icon: <BookOpen size={19} /> },
   ],
   teacher: [
     { id: 'teacher-dashboard', label: 'Panel de Control', icon: <Home size={19} /> },
@@ -145,16 +118,58 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [selectedFamilyChild, setSelectedFamilyChild] = useState<FamilyChild>(familyChildren[0]);
 
-  const login = (email: string, password: string) => {
-    const found = demoUsers[email.trim().toLowerCase()];
-    if (!found || found.password !== password) {
-      setLoginError('Credenciales demo invalidas. Usa la contrasena 123456.');
-      return;
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await fetch('http://localhost:4000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ correo: email.trim().toLowerCase(), password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setLoginError(errorData.message || 'Credenciales demo inválidas.');
+        return;
+      }
+
+      const data = await response.json();
+      
+      // Mapear IdRol de la base de datos a los roles del frontend:
+      // 1 -> 'admin' (Administrador)
+      // 2 -> 'admin' (Personal Académico)
+      // 3 -> 'teacher' (Docente / Profesor)
+      // 4 -> 'student' (Alumno)
+      // 5 -> 'family' (Padre de Familia)
+      let resolvedRole: Role = 'student';
+      if (data.usuario.idRol === 1 || data.usuario.idRol === 2) {
+        resolvedRole = 'admin';
+      } else if (data.usuario.idRol === 3) {
+        resolvedRole = 'teacher';
+      } else if (data.usuario.idRol === 4) {
+        resolvedRole = 'student';
+      } else if (data.usuario.idRol === 5) {
+        resolvedRole = 'family';
+      }
+
+      const nextUser: User = {
+        email: data.usuario.correo,
+        name: data.usuario.nombre,
+        role: resolvedRole,
+      };
+
+      setUser(nextUser);
+      setView(defaultView[nextUser.role]);
+      setLoginError('');
+      
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+    } catch (err: any) {
+      console.error('Error de login:', err);
+      setLoginError('Error de conexión con el servidor.');
     }
-    const nextUser = { email: found.email, name: found.name, role: found.role };
-    setUser(nextUser);
-    setView(defaultView[nextUser.role]);
-    setLoginError('');
   };
 
   const logout = () => {
@@ -795,62 +810,67 @@ function AppShell({ user, view, onView, onLogout, selectedFamilyChild, onFamilyC
 
   return (
     <div className={`grid min-h-screen ${isAdmin ? 'bg-[#f7f9fb] lg:grid-cols-[260px_minmax(0,1fr)]' : 'lg:grid-cols-[280px_minmax(0,1fr)]'}`}>
-      <aside className={`hidden border-r p-5 lg:flex lg:flex-col ${isAdmin ? 'border-[#c3c6d7] bg-[#505f76] text-[#d3e4fe]' : isStudent ? 'border-blue-100 bg-white text-[#151c26]' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}`}>
-        <div className="flex items-center gap-3">
-          <div className={`grid h-11 w-11 place-items-center ${isAdmin ? 'rounded-xl bg-[#2563eb] text-[#eeefff] shadow-sm' : isStudent ? 'rounded-2xl bg-[#0c70ea] text-white' : 'rounded-2xl bg-slate-950 text-white dark:bg-blue-600'}`}>
-            {isStudent ? <Sparkles size={23} /> : <GraduationCap size={23} />}
-          </div>
-          <div className={isStudent ? 'rounded-2xl bg-white px-3 py-2' : ''}>
-            <strong className={`block text-xl font-black leading-tight ${isAdmin ? 'text-white' : isStudent ? 'text-[#003b8f]' : ''}`}>{isAdmin ? 'EduAdmin Pro' : isStudent ? 'Aventura Kids' : 'SIGE'}</strong>
-            <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${isAdmin ? 'text-[#d3e4fe]' : isStudent ? 'text-[#5f6f8f]' : 'text-slate-400'}`}>{isAdmin ? 'Administrative Portal' : 'Sistema Integral de Gestion Escolar'}</p>
-          </div>
-        </div>
-        <nav className="mt-8 flex flex-1 flex-col gap-2">
-          {nav.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onView(item.id)}
-              className={`flex min-h-12 items-center gap-3 px-4 text-left text-sm font-bold transition-all duration-200 ease-in-out ${
-                view === item.id
-                  ? isAdmin
-                    ? 'rounded-xl border-l-4 border-[#004ac6] bg-[#2563eb] text-[#eeefff] shadow-sm'
-                    : isStudent
-                    ? 'bg-[#0c70ea] text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.16)]'
-                    : 'bg-slate-950 text-white shadow-sm dark:bg-blue-600'
-                  : isAdmin
-                    ? 'rounded-xl text-[#d3e4fe] hover:bg-white/10 hover:text-white'
-                    : isStudent
-                    ? 'text-slate-500 hover:bg-blue-50 hover:text-[#0058bd]'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        {isAdmin ? (
-          <div className="border-t border-white/15 pt-4">
-            <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold text-[#d3e4fe] transition hover:bg-white/10 hover:text-white" onClick={() => setShowAdminProfile(true)} type="button">
-              <Settings size={18} />
-              Configuracion
-            </button>
-            <button className="mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold text-[#d3e4fe] transition hover:bg-white/10 hover:text-white" onClick={onLogout} type="button">
-              <LogOut size={18} />
-              Cerrar sesion
-            </button>
-          </div>
-        ) : !isStudent && (
-          <div className="rounded-3xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-sm font-black text-white dark:bg-blue-600">{initials(user.name)}</div>
-              <div className="min-w-0">
-                <strong className="block truncate text-sm">{user.name}</strong>
-                <span className="block truncate text-xs text-slate-500">{user.email}</span>
-              </div>
+      <aside className={`hidden border-r p-5 lg:flex lg:flex-col justify-between h-screen sticky top-0 ${isAdmin ? 'border-[#c3c6d7] bg-[#505f76] text-[#d3e4fe]' : isStudent ? 'border-blue-100 bg-white text-[#151c26]' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}`}>
+        <div>
+          <div className="flex items-center gap-3">
+            <div className={`grid h-11 w-11 place-items-center ${isAdmin ? 'rounded-xl bg-[#2563eb] text-[#eeefff] shadow-sm' : isStudent ? 'rounded-2xl bg-[#0c70ea] text-white' : 'rounded-2xl bg-slate-950 text-white dark:bg-blue-600'}`}>
+              {isStudent ? <Sparkles size={23} /> : <GraduationCap size={23} />}
+            </div>
+            <div className={isStudent ? 'rounded-2xl bg-white px-3 py-2' : ''}>
+              <strong className={`block text-xl font-black leading-tight ${isAdmin ? 'text-white' : isStudent ? 'text-[#003b8f]' : ''}`}>{isAdmin ? 'EduAdmin Pro' : isStudent ? 'Aventura Kids' : 'SIGE'}</strong>
+              <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${isAdmin ? 'text-[#d3e4fe]' : isStudent ? 'text-[#5f6f8f]' : 'text-slate-400'}`}>{isAdmin ? 'Administrative Portal' : 'Sistema Integral de Gestion Escolar'}</p>
             </div>
           </div>
-        )}
+          <nav className="mt-8 flex flex-col gap-2">
+            {nav.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onView(item.id)}
+                className={`flex min-h-12 items-center gap-3 px-4 text-left text-sm font-bold transition-all duration-200 ease-in-out ${
+                  view === item.id
+                    ? isAdmin
+                      ? 'rounded-xl border-l-4 border-[#004ac6] bg-[#2563eb] text-[#eeefff] shadow-sm'
+                      : isStudent
+                      ? 'bg-[#0c70ea] text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.16)]'
+                      : 'bg-slate-950 text-white shadow-sm dark:bg-blue-600'
+                    : isAdmin
+                      ? 'rounded-xl text-[#d3e4fe] hover:bg-white/10 hover:text-white'
+                      : isStudent
+                      ? 'text-slate-500 hover:bg-blue-50 hover:text-[#0058bd]'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div>
+          {isAdmin ? (
+            <div className="border-t border-white/15 pt-4">
+              <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold text-[#d3e4fe] transition hover:bg-white/10 hover:text-white" onClick={() => setShowAdminProfile(true)} type="button">
+                <Settings size={18} />
+                Configuracion
+              </button>
+              <button className="mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold text-[#d3e4fe] transition hover:bg-white/10 hover:text-white" onClick={onLogout} type="button">
+                <LogOut size={18} />
+                Cerrar sesion
+              </button>
+            </div>
+          ) : !isStudent && (
+            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-sm font-black text-white dark:bg-blue-600">{initials(user.name)}</div>
+                <div className="min-w-0">
+                  <strong className="block truncate text-sm">{user.name}</strong>
+                  <span className="block truncate text-xs text-slate-500">{user.email}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </aside>
       <div className="min-w-0">
         {!isAdmin && (
@@ -990,7 +1010,7 @@ function FamilyStudentSelection({ current, onSelect, onClose }: { current: Famil
 function RoleContent({ user, view, setView, onLogout, selectedFamilyChild, onFamilyChildChange }: { user: User; view: View; setView: (view: View) => void; onLogout: () => void; selectedFamilyChild: FamilyChild; onFamilyChildChange: (child: FamilyChild) => void }) {
   if (user.role === 'admin') return <AdminViews view={view} setView={setView} />;
   if (user.role === 'teacher') return <TeacherViews view={view} setView={setView} onLogout={onLogout} />;
-  if (user.role === 'student') return <StudentViews view={view} setView={setView} onLogout={onLogout} />;
+  if (user.role === 'student') return <StudentDashboard view={view} setView={setView} onLogout={onLogout} />;
   return <FamilyViews view={view} setView={setView} selectedChild={selectedFamilyChild} onChildChange={onFamilyChildChange} onLogout={onLogout} />;
 }
 
@@ -1006,16 +1026,40 @@ function AdminViews({ view, setView }: { view: View; setView: (view: View) => vo
 }
 
 function AdminDashboard({ setView }: { setView: (view: View) => void }) {
+  const [teacherCount, setTeacherCount] = useState<string | null>(null);
+  const [studentCount, setStudentCount] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:4000/api/users', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const teachersList = data.filter((u: any) => u.IdRol === 3 || u.IdRol === 2);
+          const studentsList = data.filter((u: any) => u.IdRol === 4);
+          setTeacherCount(String(teachersList.length));
+          setStudentCount(String(studentsList.length));
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard metrics:', err);
+      }
+    };
+    fetchCount();
+  }, []);
+
   return (
     <AdminPage title="Panel de Control Principal" subtitle="Informacion relevante para administracion academica y seguimiento institucional.">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <AdminMetric title="Profesores" value="142" detail="+8 activos este mes" icon={<GraduationCap />} />
-        <AdminMetric title="Alumnos" value="1,284" detail="15 inscripciones nuevas" icon={<Users />} />
-        <AdminMetric title="Materias activas" value="64" detail="3 con conflicto" icon={<BookOpen />} />
-        <AdminMetric title="Actividades" value="28" detail="7 esta semana" icon={<CalendarDays />} />
+      <div className="grid gap-6 md:grid-cols-2">
+        <AdminMetric title="Profesores" value={teacherCount ?? '...'} detail="Activos en la base de datos" icon={<GraduationCap />} />
+        <AdminMetric title="Alumnos" value={studentCount ?? '...'} detail="Registrados este ciclo" icon={<Users />} />
       </div>
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <AdminCard title="Calendario Institucional" toolbar={<button className="text-sm font-bold text-[#004ac6]" onClick={() => setView('admin-activities')} type="button">Gestionar calendario</button>}>
+        <AdminCard title="Calendario Institucional" toolbar={<button className="text-sm font-bold text-[#004ac6]" onClick={() => setView('admin-activities')} type="button" disabled>Calendario Cerrado</button>}>
           <AdminCalendar />
         </AdminCard>
         <AdminCard title="Actividades Recientes">
@@ -1023,211 +1067,15 @@ function AdminDashboard({ setView }: { setView: (view: View) => void }) {
         </AdminCard>
       </div>
       <AdminCard title="Acciones Rapidas">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2">
           <AdminAction title="Nueva Inscripcion" text="Recibir expediente de estudiante" icon={<ClipboardList />} onClick={() => setView('admin-enrollment')} />
           <AdminAction title="Crear Perfil de Profesor" text="Registrar datos y rol institucional" icon={<GraduationCap />} onClick={() => setView('admin-create-teacher')} />
-          <AdminAction title="Nuevo Comite" text="Definir miembros y responsabilidades" icon={<Users />} onClick={() => setView('admin-create-committee')} />
         </div>
       </AdminCard>
     </AdminPage>
   );
 }
-
-function AdminTeachers({ setView }: { setView: (view: View) => void }) {
-  const [query, setQuery] = useState('');
-  const [selectedTeacher, setSelectedTeacher] = useState(teachers[0]);
-  const [teacherPanel, setTeacherPanel] = useState<'profile' | 'update' | 'message' | 'deactivate' | null>(null);
-  const [teacherForm, setTeacherForm] = useState({
-    name: teachers[0].name,
-    email: teachers[0].email,
-    specialty: teachers[0].specialty,
-    phone: '5552-1048',
-    course: teachers[0].load > 80 ? '5 cursos' : '3 cursos',
-    committee: teachers[0].committees,
-  });
-  const filtered = teachers.filter((teacher) => `${teacher.name} ${teacher.specialty}`.toLowerCase().includes(query.toLowerCase()));
-  const selectTeacher = (teacher: typeof teachers[number]) => {
-    setSelectedTeacher(teacher);
-    setTeacherForm({
-      name: teacher.name,
-      email: teacher.email,
-      specialty: teacher.specialty,
-      phone: teacher.name.includes('Marco') ? '5554-2210' : teacher.name.includes('Sofia') ? '5551-7788' : teacher.name.includes('Daniel') ? '5559-3021' : '5552-1048',
-      course: teacher.load > 80 ? '5 cursos' : '3 cursos',
-      committee: teacher.committees,
-    });
-  };
-  const openTeacherPanel = (teacher: typeof teachers[number], panel: typeof teacherPanel) => {
-    selectTeacher(teacher);
-    setTeacherPanel(panel);
-  };
-
-  return (
-    <AdminPage title="Gestion de Profesores" subtitle="Administrar perfiles, cursos asignados, comites, carga academica y datos institucionales.">
-      <div className="grid gap-6">
-        <AdminCard title="Teacher Directory" toolbar={<SearchInput value={query} onChange={setQuery} placeholder="Buscar profesor..." />}>
-          <div className="overflow-x-auto rounded-2xl border border-[#c3c6d7]">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-[#1f2d44] text-xs font-black uppercase tracking-wider text-[#9ab0cf]">
-                <tr>{['Profesor', 'Especialidad', 'Cursos', 'Comites', 'Estado', 'Acciones'].map((header) => <th className="px-5 py-3" key={header}>{header}</th>)}</tr>
-              </thead>
-              <tbody className="divide-y divide-[#d8deea]">
-                {filtered.map((teacher) => {
-                  const selected = selectedTeacher.email === teacher.email;
-                  return (
-                    <tr className={`cursor-pointer transition ${selected ? 'bg-[#eef4ff]' : 'bg-white hover:bg-[#f7f9fb]'}`} key={teacher.email} onClick={() => selectTeacher(teacher)}>
-                      <td className="px-5 py-4"><Person name={teacher.name} sub={teacher.email} /></td>
-                      <td className="px-5 py-4"><AdminBadge>{teacher.specialty}</AdminBadge></td>
-                      <td className="px-5 py-4">{teacher.load > 80 ? '5 cursos' : '3 cursos'}</td>
-                      <td className="px-5 py-4">{teacher.committees}</td>
-                      <td className="px-5 py-4"><Status value={teacher.status} /></td>
-                      <td className="px-5 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button className="grid h-9 w-9 place-items-center rounded-lg bg-[#dbe1ff] text-[#004ac6] transition hover:scale-105" onClick={(event) => { event.stopPropagation(); openTeacherPanel(teacher, 'profile'); }} title="Ver perfil" type="button"><Eye size={17} /></button>
-                          <button className="grid h-9 w-9 place-items-center rounded-lg bg-[#fff1c7] text-[#775900] transition hover:scale-105" onClick={(event) => { event.stopPropagation(); openTeacherPanel(teacher, 'update'); }} title="Actualizar" type="button"><Pencil size={17} /></button>
-                          <button className="grid h-9 w-9 place-items-center rounded-lg bg-[#d9f7e8] text-[#006b3b] transition hover:scale-105" onClick={(event) => { event.stopPropagation(); openTeacherPanel(teacher, 'message'); }} title="Mandar mensaje" type="button"><Send size={17} /></button>
-                          <button className="grid h-9 w-9 place-items-center rounded-lg bg-[#ffdad6] text-[#93000a] transition hover:scale-105" onClick={(event) => { event.stopPropagation(); openTeacherPanel(teacher, 'deactivate'); }} title="Desactivar o eliminar" type="button"><Trash2 size={17} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </AdminCard>
-        <div>
-          <button className="rounded-lg border border-[#c3c6d7] bg-white px-4 py-3 text-sm font-bold text-[#004ac6]" onClick={() => setView('admin-create-teacher')} type="button">Crear nuevo profesor</button>
-        </div>
-      </div>
-      {teacherPanel && (
-        <TeacherActionPanel
-          form={teacherForm}
-          onClose={() => setTeacherPanel(null)}
-          onFormChange={setTeacherForm}
-          panel={teacherPanel}
-          teacher={selectedTeacher}
-        />
-      )}
-    </AdminPage>
-  );
-}
-
-function TeacherActionPanel({
-  teacher,
-  panel,
-  form,
-  onFormChange,
-  onClose,
-}: {
-  teacher: typeof teachers[number];
-  panel: 'profile' | 'update' | 'message' | 'deactivate';
-  form: { name: string; email: string; specialty: string; phone: string; course: string; committee: string };
-  onFormChange: (value: { name: string; email: string; specialty: string; phone: string; course: string; committee: string }) => void;
-  onClose: () => void;
-}) {
-  const [message, setMessage] = useState(`Hola ${teacher.name.split(' ')[0]}, necesito comentarte un tema institucional.`);
-  const titleByPanel = {
-    profile: 'Perfil del profesor',
-    update: 'Actualizar profesor',
-    message: 'Mensaje directo',
-    deactivate: 'Desactivar o eliminar',
-  };
-
-  return (
-    <div className="fixed inset-0 z-40 bg-[#172033]/35 p-4 backdrop-blur-sm">
-      <div className="ml-auto h-full max-w-[540px] overflow-y-auto rounded-2xl border border-[#c3c6d7] bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#004ac6]">Gestion de profesores</p>
-            <h2 className="mt-2 text-3xl font-black text-[#191c1e]">{titleByPanel[panel]}</h2>
-            <p className="mt-2 text-sm text-[#434655]">{teacher.name} · {teacher.email}</p>
-          </div>
-          <button className="rounded-full border border-[#c3c6d7] px-3 py-2 text-sm font-bold text-[#434655]" onClick={onClose} type="button">Cerrar</button>
-        </div>
-
-        <div className="mt-6 flex items-center gap-4 rounded-xl bg-[#f7f9fb] p-4">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-[#dbe1ff] text-xl font-black text-[#004ac6]">{initials(teacher.name)}</span>
-          <div>
-            <strong className="block text-lg text-[#191c1e]">{teacher.name}</strong>
-            <span className="text-sm text-[#434655]">{teacher.specialty} · {teacher.status}</span>
-          </div>
-        </div>
-
-        {panel === 'profile' && (
-          <div className="mt-6 grid gap-3">
-            {[
-              ['Especialidad', teacher.specialty],
-              ['Correo institucional', teacher.email],
-              ['Cursos asignados', teacher.load > 80 ? '5 cursos' : '3 cursos'],
-              ['Comites', teacher.committees],
-              ['Carga academica', `${teacher.load}%`],
-              ['Estado', teacher.status],
-            ].map(([label, value]) => (
-              <div className="rounded-xl border border-[#e0e3e5] bg-white p-4" key={label}>
-                <p className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">{label}</p>
-                <strong className="mt-1 block text-[#191c1e]">{value}</strong>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {panel === 'update' && (
-          <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={(event) => event.preventDefault()}>
-            {[
-              ['name', 'Nombre completo'],
-              ['email', 'Correo institucional'],
-              ['specialty', 'Especialidad'],
-              ['phone', 'Telefono'],
-              ['course', 'Curso asignado'],
-              ['committee', 'Comite'],
-            ].map(([key, label]) => (
-              <label key={key}>
-                <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">{label}</span>
-                <input
-                  className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15"
-                  onChange={(event) => onFormChange({ ...form, [key]: event.target.value })}
-                  value={form[key as keyof typeof form]}
-                />
-              </label>
-            ))}
-            <button className="rounded-2xl bg-[#1f5eff] px-5 py-3 font-black text-white transition hover:bg-[#004ac6] md:col-span-2" onClick={onClose} type="button">Guardar cambios</button>
-          </form>
-        )}
-
-        {panel === 'message' && (
-          <div className="mt-6 grid gap-4">
-            <label>
-              <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Mensaje para {teacher.name}</span>
-              <textarea className="admin-input mt-2 min-h-40 w-full rounded-2xl border border-[#c3c6d7] px-4 py-3 text-sm outline-none" onChange={(event) => setMessage(event.target.value)} value={message} />
-            </label>
-            <div className="rounded-xl bg-[#f7f9fb] p-4 text-sm text-[#434655]">
-              El mensaje quedara preparado como comunicacion directa entre el administrador y el profesor.
-            </div>
-            <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#007a43] px-5 py-3 font-black text-white transition hover:bg-[#006b3b]" onClick={onClose} type="button"><Send size={18} /> Enviar mensaje</button>
-          </div>
-        )}
-
-        {panel === 'deactivate' && (
-          <div className="mt-6 grid gap-4">
-            <div className="rounded-xl border border-[#ffdad6] bg-[#fff2f0] p-4">
-              <h3 className="text-lg font-bold text-[#93000a]">Accion sensible</h3>
-              <p className="mt-2 text-sm text-[#434655]">Puedes desactivar al profesor para impedir acceso temporal, o marcarlo para eliminacion administrativa cuando deje de laborar en la institucion.</p>
-            </div>
-            <label>
-              <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Motivo</span>
-              <textarea className="admin-input mt-2 min-h-28 w-full rounded-2xl border border-[#c3c6d7] px-4 py-3 text-sm outline-none" placeholder="Describe el motivo de la accion..." />
-            </label>
-            <div className="grid gap-3 md:grid-cols-2">
-              <button className="rounded-2xl bg-[#b26a00] px-5 py-3 font-black text-white transition hover:bg-[#8f5600]" onClick={onClose} type="button">Desactivar acceso</button>
-              <button className="rounded-2xl bg-[#ba1a1a] px-5 py-3 font-black text-white transition hover:bg-[#93000a]" onClick={onClose} type="button">Marcar baja laboral</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// AdminTeachers y TeacherActionPanel extraídos a frontend/src/components/modules/AdminTeachers.tsx
 
 function AdminActivities() {
   const activities = [
@@ -1593,81 +1441,198 @@ function AdminCreateCommittee() {
 }
 
 function AdminEnrollment() {
+  const [studentName, setStudentName] = useState('');
+  const [studentEmail, setStudentEmail] = useState('');
+  const [studentPassword, setStudentPassword] = useState('123456');
+  const [parentName, setParentName] = useState('');
+  const [parentEmail, setParentEmail] = useState('');
+  const [parentPassword, setParentPassword] = useState('123456');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    if (!studentName.trim() || !studentEmail.trim() || !studentPassword.trim()) {
+      setErrorMessage('El nombre del alumno, correo institucional y contraseña inicial son obligatorios.');
+      return;
+    }
+
+    const sNameParts = studentName.trim().split(' ');
+    const sNombres = sNameParts[0] || '';
+    const sApellidos = sNameParts.slice(1).join(' ') || 'Alumno';
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // 1. Registrar Alumno (IdRol = 4)
+      const studentResponse = await fetch('http://localhost:4000/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nombres: sNombres,
+          apellidos: sApellidos,
+          correo: studentEmail.trim().toLowerCase(),
+          password: studentPassword,
+          idRol: 4
+        })
+      });
+
+      const sData = await studentResponse.json().catch(() => ({}));
+
+      if (!studentResponse.ok) {
+        setErrorMessage(sData.message || 'Error al registrar al estudiante.');
+        return;
+      }
+
+      // 2. Si se definen datos del encargado, registrarlo con IdRol = 5 (Padre de Familia)
+      if (parentName.trim() && parentEmail.trim()) {
+        const pNameParts = parentName.trim().split(' ');
+        const pNombres = pNameParts[0] || '';
+        const pApellidos = pNameParts.slice(1).join(' ') || 'Tutor';
+        
+        await fetch('http://localhost:4000/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            nombres: pNombres,
+            apellidos: pApellidos,
+            correo: parentEmail.trim().toLowerCase(),
+            password: parentPassword,
+            idRol: 5
+          })
+        });
+      }
+
+      setToastMessage(studentName.trim());
+      setErrorMessage(null);
+
+      // Limpiar Formulario
+      setStudentName('');
+      setStudentEmail('');
+      setStudentPassword('123456');
+      setParentName('');
+      setParentEmail('');
+      setParentPassword('123456');
+
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+    } catch (err: any) {
+      console.error('Error in student admission:', err);
+      setErrorMessage('Error de conexión con el servidor.');
+    }
+  };
+
   return (
-    <AdminPage title="Student Admission Form" subtitle="Inscripcion y recepcion de nuevos estudiantes, encargados y documentos de admision.">
+    <AdminPage title="Student Admission Form" subtitle="Inscripcion y recepcion de nuevos estudiantes y encargados en la base de datos local.">
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           <AdminCard title="Datos del estudiante">
-            <FormGrid fields={['Nombre completo', 'Fecha de nacimiento', 'Grado solicitado', 'Codigo temporal', 'Direccion', 'Observaciones medicas']} button="Guardar estudiante" />
-          </AdminCard>
-          <AdminCard title="Encargados">
-            <FormGrid fields={['Nombre encargado principal', 'Telefono', 'Correo', 'Relacion familiar']} button="Agregar encargado" />
-          </AdminCard>
-          <AdminCard title="Documentos">
             <div className="grid gap-4 md:grid-cols-2">
-              {['Certificado de nacimiento', 'Constancia de notas', 'Documento de encargado', 'Fotografia'].map((doc) => (
-                <label className="rounded-lg border-2 border-dashed border-[#c3c6d7] bg-[#f7f9fb] p-5 text-center" key={doc}>
-                  <Upload className="mx-auto text-[#004ac6]" />
-                  <span className="mt-2 block text-sm font-bold text-[#191c1e]">{doc}</span>
-                  <input className="mt-3 w-full text-xs" type="file" />
-                </label>
-              ))}
+              <label>
+                <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Nombre completo del alumno</span>
+                <input
+                  className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15"
+                  onChange={(e) => setStudentName(e.target.value)}
+                  placeholder="Carlos Requena"
+                  value={studentName}
+                />
+              </label>
+              <label>
+                <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Correo institucional</span>
+                <input
+                  className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15"
+                  onChange={(e) => setStudentEmail(e.target.value)}
+                  placeholder="alumno@eduwonder.com"
+                  type="email"
+                  value={studentEmail}
+                />
+              </label>
+              <label className="md:col-span-2">
+                <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Contraseña inicial</span>
+                <input
+                  className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15"
+                  onChange={(e) => setStudentPassword(e.target.value)}
+                  placeholder="••••••"
+                  type="password"
+                  value={studentPassword}
+                />
+              </label>
+            </div>
+          </AdminCard>
+
+          <AdminCard title="Encargados y Relación Familiar">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label>
+                <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Nombre del encargado principal</span>
+                <input
+                  className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15"
+                  onChange={(e) => setParentName(e.target.value)}
+                  placeholder="Eduardo García"
+                  value={parentName}
+                />
+              </label>
+              <label>
+                <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Correo encargado</span>
+                <input
+                  className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15"
+                  onChange={(e) => setParentEmail(e.target.value)}
+                  placeholder="familia@eduwonder.com"
+                  type="email"
+                  value={parentEmail}
+                />
+              </label>
+              <label className="md:col-span-2">
+                <span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">Contraseña encargado</span>
+                <input
+                  className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15"
+                  onChange={(e) => setParentPassword(e.target.value)}
+                  placeholder="••••••"
+                  type="password"
+                  value={parentPassword}
+                />
+              </label>
             </div>
           </AdminCard>
         </div>
+
         <AdminCard title="Admissions Snapshot">
-          <AdminMetric title="Pendientes" value="18" detail="Expedientes incompletos" icon={<ClipboardList />} />
+          <AdminMetric title="Admisión Activa" value="Estudiante" detail="Rol: Alumno (ID: 4)" icon={<ClipboardList />} />
           <div className="mt-4 space-y-3 text-sm text-[#434655]">
-            <p>Validar documentos antes de generar usuario institucional.</p>
-            <p>Enviar confirmacion al encargado al finalizar la inscripcion.</p>
+            <p>Se registrará la cuenta del alumno en la tabla Usuario asociándola a su respectivo rol transaccional de forma inmediata.</p>
+            <p>Si se definen datos del encargado, se creará también su cuenta de acceso familiar.</p>
           </div>
-          <button className="mt-5 w-full rounded-lg bg-[#004ac6] px-5 py-3 text-sm font-bold text-white" type="button">Finalizar inscripcion</button>
+          {errorMessage && (
+            <div className="mt-4 rounded-lg bg-[#fff2f0] border border-[#ffdad6] p-3 text-sm font-bold text-[#93000a]">
+              {errorMessage}
+            </div>
+          )}
+          <button className="mt-5 w-full rounded-lg bg-[#004ac6] px-5 py-3 text-sm font-bold text-white transition-all hover:bg-[#003da3] active:scale-95" onClick={handleSubmit} type="button">Finalizar inscripción</button>
         </AdminCard>
       </div>
+
+      {/* Floating glassmorphic Success Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-4 rounded-2xl border border-emerald-100 bg-white/95 px-6 py-4 shadow-[0_12px_32px_-4px_rgba(16,24,40,0.15)] backdrop-blur-md animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="grid h-10 w-10 place-items-center rounded-full bg-emerald-50 text-emerald-500">
+            <ShieldCheck size={22} />
+          </div>
+          <div>
+            <strong className="block text-sm font-bold text-[#191c1e]">¡Estudiante Inscrito!</strong>
+            <span className="text-xs text-[#5d6b82]">El alumno {toastMessage} ha sido registrado correctamente.</span>
+          </div>
+        </div>
+      )}
     </AdminPage>
   );
 }
 
-function AdminCreateTeacher() {
-  const [teacherRole, setTeacherRole] = useState('Docente titular');
-  return (
-    <AdminPage title="Create Teacher Profile" subtitle="Registro de profesor, datos profesionales, cursos, comites y rol institucional.">
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <div className="space-y-6">
-          <AdminCard title="Personal Information">
-            <FormGrid fields={['Nombre completo', 'Correo institucional', 'Telefono', 'Direccion']} button="Guardar informacion personal" />
-          </AdminCard>
-          <AdminCard title="Professional Details">
-            <FormGrid fields={['Especialidad', 'Titulo academico', 'Cursos asignados', 'Comites asignados', 'Fecha de contratacion', 'Jornada']} button="Guardar perfil docente" />
-          </AdminCard>
-          <AdminCard title="Rol a desempeñar">
-            <div className="grid gap-3 md:grid-cols-3">
-              {['Docente titular', 'Coordinador de area', 'Tutor de grado', 'Apoyo academico', 'Encargado de comite', 'Docente extracurricular'].map((role) => (
-                <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition ${teacherRole === role ? 'border-[#004ac6] bg-[#eef4ff]' : 'border-[#c3c6d7] bg-white hover:bg-[#f7f9fb]'}`} key={role}>
-                  <input className="h-4 w-4 accent-[#004ac6]" checked={teacherRole === role} name="teacher-role" onChange={() => setTeacherRole(role)} type="radio" />
-                  <span className="text-sm font-bold text-[#191c1e]">{role}</span>
-                </label>
-              ))}
-            </div>
-            <p className="mt-4 rounded-xl bg-[#f7f9fb] p-4 text-sm text-[#434655]">Rol seleccionado: <strong>{teacherRole}</strong>. Los permisos del sistema los definira el backend segun este rol.</p>
-          </AdminCard>
-        </div>
-        <AdminCard title="Profile Preview">
-          <div className="rounded-lg border-2 border-dashed border-[#c3c6d7] bg-[#f7f9fb] p-8 text-center">
-            <GraduationCap className="mx-auto text-[#004ac6]" size={48} />
-            <p className="mt-3 text-sm font-bold text-[#434655]">Agregar fotografia del profesor</p>
-            <input className="mt-4 w-full text-xs" type="file" />
-          </div>
-          <div className="mt-5 space-y-3">
-            <AdminAction title="Bitacora transaccional" text="Registrar cambios en Usuario y ProfesorPerfil" icon={<Database />} />
-            <AdminAction title="Verificacion" text="Validar correo institucional antes de activar" icon={<ShieldCheck />} />
-          </div>
-          <button className="mt-5 w-full rounded-lg bg-[#004ac6] px-5 py-3 text-sm font-bold text-white" type="button">Crear profesor</button>
-        </AdminCard>
-      </div>
-    </AdminPage>
-  );
-}
+// AdminCreateTeacher extraído a frontend/src/components/modules/AdminCreateTeacher.tsx
 
 function AdminPage({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
@@ -1719,10 +1684,6 @@ function AdminAction({ title, text, icon, onClick }: { title: string; text: stri
       </span>
     </button>
   );
-}
-
-function AdminBadge({ children }: { children: ReactNode }) {
-  return <span className="rounded-full bg-[#dbe1ff] px-3 py-1 text-xs font-bold text-[#003ea8]">{children}</span>;
 }
 
 function AdminCalendar() {
@@ -1967,22 +1928,6 @@ function TeacherCommittees() {
     </TeacherPage>
   );
 }
-
-function TeacherPlanning() {
-  return <TeacherGrades title="Matemáticas Avanzadas: Sección B" subtitle="Salón 402 • Lun, Mié, Vie 09:00 - 10:30 AM" planning />;
-}
-
-function TeacherGrades({ title = 'Notas y Reportes', subtitle = 'Administra notas, revisa alertas estadísticas y genera reportes académicos.', planning = false }: { title?: string; subtitle?: string; planning?: boolean }) {
-  return (
-    <TeacherPage title={title} subtitle={subtitle} actions={<div className="flex gap-3"><button className="rounded bg-[#d3e4fe] px-7 py-4 text-lg text-[#0b1c30]"><Upload className="mr-2 inline" />Exportar Registros</button><button className="rounded bg-[#00288e] px-7 py-4 text-lg font-bold text-white"><Users className="mr-2 inline" />Inscribir Alumno</button></div>}>
-      <div className="grid gap-7 xl:grid-cols-[1fr_380px]">
-        <div className="space-y-7"><div className="grid gap-5 md:grid-cols-3"><TeacherStat title="Promedio" value="84.2%" detail="" icon={<LineChart />} tone="green" /><TeacherStat title="Asistencia" value="96.5%" detail="" icon={<ShieldCheck />} /><TeacherStat title="Tareas Pendientes" value="12" detail="" icon={<ClipboardList />} /></div><TeacherCard title={planning ? 'Planificación de 100 puntos' : 'Libro de Calificaciones'}><DataTable headers={['Nombre', 'Test Unidad 1', 'Quiz Cálculo', 'Parcial', 'Lab Álgebra']} rows={[['Elena Rodriguez', '92', '88', '95', '100'], ['Marcus Thorne', '76', '81', '78', '85'], ['Sarah Jenkins', '98', '94', '91', '89'], ['Amara Okafor', '64', '72', '58', '70']]} /></TeacherCard><TeacherCard title="Lista de Estudiantes" toolbar={<button className="text-[#00288e]">Ver los 24 alumnos</button>}><DataTable headers={['Nombre', 'ID', 'Estado', 'Acciones']} rows={[['Elena Rodriguez', '#MTH-2023-001', <Status value="Activo" />, '⋮'], ['Marcus Thorne', '#MTH-2023-002', <Status value="Activo" />, '⋮'], ['Sarah Jenkins', '#MTH-2023-003', <Status value="Ausente" />, '⋮']]} /></TeacherCard></div>
-        <TeacherCard title="Tareas" toolbar={<button className="grid h-11 w-11 place-items-center rounded-full bg-[#00288e] text-white"><Plus /></button>}><div className="space-y-5">{['Proyecto Final Cálculo', 'Quiz Semanal de Trigonometría', 'Tarea de Álgebra Vectorial'].map((task, index) => <article className={`rounded-lg border p-5 ${index === 0 ? 'border-[#c4c5d5] bg-[#eff4ff]' : 'border-[#c4c5d5] bg-white'}`} key={task}><span className={`rounded px-3 py-1 text-sm font-bold ${index === 0 ? 'bg-[#95f8a7] text-[#005323]' : 'bg-[#dde1ff] text-[#00288e]'}`}>{['En Progreso', 'Programada', 'En Revisión'][index]}</span><h4 className="mt-4 text-xl">{task}</h4><p className="mt-3 text-[#303241]">Vence: {['24 oct, 2023', '28 oct, 2023', '20 oct'][index]}</p><div className="mt-4 h-1.5 rounded bg-[#d3e4fe]"><span className="block h-full rounded bg-[#006d30]" style={{ width: `${[75, 20, 100][index]}%` }} /></div></article>)}</div><button className="mt-72 w-full rounded border-2 border-dashed border-[#c4c5d5] py-4 text-xl">+ Añadir etapa</button></TeacherCard>
-      </div>
-    </TeacherPage>
-  );
-}
-
 function TeacherConversations() {
   const [message, setMessage] = useState('');
   return <TeacherPage title="Conversaciones" subtitle="Comunicación con alumnos, padres de familia y personal administrativo."><div className="grid gap-7 xl:grid-cols-[360px_1fr]"><TeacherCard title="Bandeja">{['Padre de Mateo García', 'Ana López', 'Admin Profesores', 'Comité de Evaluación'].map((contact, index) => <button className={`mb-3 w-full rounded border p-4 text-left ${index === 0 ? 'border-[#00288e] bg-[#eff4ff]' : 'border-[#c4c5d5] bg-white'}`} key={contact}><strong>{contact}</strong><p className="text-[#444653]">{index === 0 ? 'Solicitud de apoyo con tarea pendiente' : 'Conversación activa'}</p></button>)}</TeacherCard><TeacherCard title="Padre de Mateo García"><div className="min-h-96 space-y-4 rounded bg-[#eff4ff] p-6"><p className="max-w-[75%] rounded bg-white p-4"><strong>Padre:</strong> Quisiera saber cómo apoyar la tarea pendiente.</p><p className="ml-auto max-w-[75%] rounded bg-[#dce9ff] p-4"><strong>Profesor:</strong> Compartiré una guía corta de repaso.</p></div><div className="mt-5 flex gap-3"><input className="admin-input h-14 flex-1 rounded border border-[#c4c5d5] px-5 text-lg" onChange={(event) => setMessage(event.target.value)} placeholder="Escribir mensaje..." value={message} /><button className="rounded bg-[#00288e] px-7 text-white" onClick={() => setMessage('')} type="button"><Send /></button></div></TeacherCard></div></TeacherPage>;
@@ -2001,446 +1946,6 @@ function TeacherSupport() {
 
 function TeacherSettings({ onLogout }: { onLogout: () => void }) {
   return <TeacherPage title="Configuración" subtitle="Datos personales, preferencias y sesión del profesor."><div className="grid gap-7 xl:grid-cols-[1fr_380px]"><TeacherCard title="Datos personales"><FormGrid fields={['Nombre completo', 'Correo institucional', 'Teléfono', 'Especialidad']} button="Guardar datos" /></TeacherCard><TeacherCard title="Sesión"><p className="text-xl text-[#303241]">Administra tu cuenta docente y cierra la sesión de este dispositivo.</p><button className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded bg-[#00288e] px-5 py-4 text-xl font-bold text-white" onClick={onLogout} type="button"><LogOut size={20} />Cerrar sesión</button></TeacherCard></div></TeacherPage>;
-}
-
-function StudentViews({ view, setView, onLogout }: { view: View; setView: (view: View) => void; onLogout: () => void }) {
-  if (view === 'student-classes') return <StudentClasses onOpen={() => setView('student-tasks')} />;
-  if (view === 'student-tasks') return <StudentTasks />;
-  if (view === 'student-grades') return <StudentGrades />;
-  if (view === 'student-calendar') return <StudentCalendar />;
-  if (view === 'student-library') return <StudentLibrary />;
-  if (view === 'student-diary') return <StudentDiary onOpenLibrary={() => setView('student-library')} />;
-  if (view === 'student-profile') return <StudentProfile onLogout={onLogout} />;
-  return (
-    <StudentPage title="Aventura Kids" subtitle="Listo para una nueva aventura, Leo?">
-      <section className="relative grid min-h-72 items-center gap-6 overflow-hidden rounded-[2rem] bg-[#0c70ea] p-8 shadow-[0_8px_24px_rgba(0,0,0,0.06)] md:grid-cols-[1fr_260px]">
-        <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10" />
-        <div className="absolute -bottom-24 -left-20 h-52 w-52 rounded-full bg-white/10" />
-        <div className="relative z-10">
-          <span className="inline-flex rounded-full bg-[#6ffb85] px-4 py-2 text-sm font-bold text-[#005321]">Martes de aprendizaje</span>
-          <h2 className="mt-4 text-4xl font-bold leading-tight text-white md:text-5xl">¡Hola, Explorador!</h2>
-          <p className="mt-4 max-w-xl text-xl font-medium leading-8 text-white/90">Tienes misiones nuevas, recursos de tus profes y medallas esperando por ti.</p>
-          <button onClick={() => setView('student-tasks')} className="student-pressable mt-6 rounded-full bg-[#fdd029] px-9 py-5 text-2xl font-bold text-[#231b00]" type="button">¡Empezar ahora!</button>
-        </div>
-        <div className="relative mx-auto">
-          <span className="student-float absolute -left-4 -top-4 grid h-12 w-12 place-items-center rounded-full bg-[#76fd94] text-[#002109] shadow-lg"><Sparkles size={22} /></span>
-          <img alt="Mascota Guia" className="student-bounce-hover h-64 w-64 object-contain drop-shadow-2xl" src={studentImages.robot} />
-          <div className="absolute -bottom-2 -right-2 rounded-3xl border-4 border-white bg-[#fdd029] px-5 py-3 text-center shadow-lg">
-            <span className="block text-3xl font-bold text-[#231b00]">128</span>
-            <small className="font-bold text-[#574500]">estrellas</small>
-          </div>
-        </div>
-      </section>
-      <div className="grid gap-5 md:grid-cols-3">
-        <StudentStat icon={<Star />} title="Promedio" value="90%" detail="Excelente" />
-        <StudentStat icon={<Flame />} title="Racha" value="5 dias" detail="Activa" />
-        <StudentStat icon={<Trophy />} title="Logros" value="2/4" detail="Explorador" />
-      </div>
-      <div className="grid gap-5 lg:grid-cols-3">
-        <StudentMission title="Desafio Matematico" subject="Fracciones divertidas" icon={<Sparkles />} action={() => setView('student-tasks')} />
-        <StudentMission title="Lectura Magica" subject="Cuento de aventuras" icon={<BookOpen />} action={() => setView('student-library')} />
-        <StudentMission title="Mi Diario IA" subject="Tus superpoderes hoy" icon={<Trophy />} action={() => setView('student-diary')} />
-      </div>
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_0.8fr]">
-        <StudentCard>
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <h3 className="flex items-center gap-3 text-3xl font-bold text-[#0058bd]"><ClipboardList /> Mis Misiones de Hoy</h3>
-            <span className="rounded-full bg-[#d8e2ff] px-4 py-2 font-bold text-[#001a41]">2/4 completado</span>
-          </div>
-          <div className="space-y-4">
-            {[
-              ['Desafio Matematico', 'Practica las sumas del 1 al 20', 'Completado'],
-              ['Lectura Magica', 'Lee el cuento El Dragon Azul', 'Completado'],
-              ['Idioma Aventurero', 'Aprende 5 palabras nuevas', 'Pendiente'],
-            ].map(([title, text, state], index) => (
-              <button className={`student-card-hover flex w-full items-center gap-4 rounded-3xl border-2 p-4 text-left ${state === 'Completado' ? 'border-transparent bg-[#eff4ff]' : 'border-dashed border-[#c1c6d6] bg-white'}`} key={title} onClick={() => setView('student-tasks')} type="button">
-                <span className={`grid h-14 w-14 place-items-center rounded-full ${index === 0 ? 'bg-[#00873b] text-white' : index === 1 ? 'bg-[#fdd029] text-[#231b00]' : 'bg-[#d8e2ff] text-[#001a41]'}`}>{[<Sparkles />, <BookOpen />, <GraduationCap />][index]}</span>
-                <span className="flex-1">
-                  <strong className="block text-xl text-[#151c26]">{title}</strong>
-                  <small className="text-base font-medium text-[#414754]">{text}</small>
-                </span>
-                <span className={`rounded-full px-3 py-1 text-sm font-bold ${state === 'Completado' ? 'bg-[#76fd94] text-[#002109]' : 'bg-[#d8e2ff] text-[#001a41]'}`}>{state}</span>
-              </button>
-            ))}
-          </div>
-        </StudentCard>
-        <StudentCard>
-          <h3 className="mb-4 text-center text-xl font-bold text-[#414754]">Mis Medallas Ganadas</h3>
-          <div className="grid grid-cols-3 gap-3">
-            {[<Trophy />, <BookOpen />, <Sparkles />, <Star />, <Flame />, <Award />].map((medal, index) => (
-              <span className={`student-medal-shimmer grid aspect-square place-items-center rounded-full border-4 border-white text-2xl font-bold shadow-md ${index % 2 === 0 ? 'bg-[#fdd029] text-[#231b00]' : 'bg-[#76fd94] text-[#002109]'}`} key={index}>{medal}</span>
-            ))}
-          </div>
-        </StudentCard>
-      </div>
-    </StudentPage>
-  );
-}
-
-const studentImages = {
-  avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAP6V5-Iw1D18QCTA-9cZEfiaHulbz_rvgTe7ZntCR2j5kGUcXliNvDtNtMTC1l5KfyQkn4fCPHIuK_w7_xv5HSXaDHegu-5T7dZBkdLqwsYUiEEXCxQ4R-lyLJIl_P8wi9E1Wb1xiiM3m_WUCLKC3cAWn0tBCCtoZeEMhgWXSnjIINEiGX599Vtk8vTq9jLNPkigEqkdq6henQGrUqZ4Gj5yF3Sn5dMi8UJ-1jPIue285VuJbbeWXh34z3bsCX-zZdTuCfULQmYsMP',
-  robot: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAyAm_NiIVUCJt-amlxMonBG_hHsKNfG88rvArg77P37tiI36FgrNoteBDJYcJ_WqY3Le4GCNN_UHfPKgBAZPHzRHBdJ6M_4Wr1IEcVWklPda2S1HSVQX3lQkuZpqgfgfNS073c4GMlkrkoyYmkPELsteBIAflTe-ThRxPJEwmaZXnpRKba0mV72DswglYjqCpF1mGxumR7ftZCYVzcn6rFgWgUprjBLJ4ot8_b3fteFJm7BZi-9tYxkUCOXOwe811_4ej-gw5z5RHW',
-  math: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAlI9Zus2u7-xt0a-ulLZAhQ4k-5fZfjwZECxayM-mv6o5r5wXJPX7VIo13POgvOsYL3xUY6J5nZZyAqCUJcvq-7kuJVTKCukraoYj2P9PYtGcM7hggoyqG3JPglGBykU2p6tNT14iqhhf_ei1LoiN47gc2TFimOA9-6mezfz0RSf5hG3vHFpE4mlCdGIMb5HGbovNp6bhj_8-Gj00fWcJpfAvh_sVa9AKHClRaYitS1QBzfZjNacW6BzP3jvmPp8SbX6iM_FLTaXX3',
-  science: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDEPbNpmm30orgcGxE9GI5NKCA28WbP78Oz-xhHHyMbqHhQMV11niVfCXHRlYIaDcOfWl4PdAtKfDdM7hjllfHCJlT351RKCXRLl4h6-DmnC-nOFs_30cBVPNQ5P-PMnpI86yUXlL1-Ikcu-1P_criL9_pAN1mC4-YLDQE1KgXjH7s7gqkTCkvKAhgdB6wxQBiOwF4P7EQAww0R1Zc4fBpLSzE2iL9Lau_kciaK7tg-4-yQbewO1IecQF9YqUqzakrJNgCdulmxQIV3',
-  language: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCJr9hOq-Pw7sL_A4s2PzIpoO-ME-ihKD2viynqIFDEsgH_sv0Lb-4VoRnjHF1CnhXDYGgglHBSrjQuWO-PW1D1_vOOl67--uXTtAqtgr_N7if-JXoL6PUGmfxg9uL4blZWaU9oTJQUpha0lXOvYgWTQdyXW7guL59Tn09uBhbD8AXG4urAa80lXUM8oE5cwxmijJ8fA-vYqYqtpfjPGOinBixo9_v7Y_D5UmdkTG9zG90UqS4oz1II2W78xMLBZQVW4tpZMyX0-L_z',
-  teacher: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDOjJVXbEHMshCCvHxywUGhDqmTi6Gj8kgJRrVK9u4sT8lWQxuCs2cOF0NzOT8e7ZZ8SclUssDHm_ee7bhX4VUh95DW7v9w0LFEK3ufhU7AGJHGi31kyHe-s1c_m2KocePIV0drTAIB_DSrUp3LVn0HoHbHKpfMEfvziEIwDsxgU2CB-xJBg4BRu1YRYcqQdTMf_HOHXovnMm0PVf_B1OVa5EljVWWmzJquoZiUWP50GPPybYiSa0XFb9zDdY_BGRNdPZpowsl-1o8a',
-  dog: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCS1k8QQ3nI9evmL_9bhsBk3Pj-71ViWBX5nv0bSZDwxoMfjVEkmJugH9XCxp5QuADwRQ4U0_wlYVYAo5Yl38pTuTwCF0NDpbYGKLv2L_OnlnEi8uyBTNHppBAxffYe1NmmPAIhj4z8nh-nQIrSWaT-oRIG2nGK28g6GuoXcMo_zGWQPorFwo-f1BcnJ4x4JkuqJi6rOQFgxmbsORYfYDjOf1dVNx45OICuMm7Dj9BR181PC9jTNpbXrdsNJx8fmqGtIz7o1sD3bCL8',
-  profile: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBS_lD_fciRt06MfFxeIVmdjMXs9QfSRPGK26QB5bT92gMD6rVAT4kwOJCHRgq_1FeklduxutSfm1lNMI4L1FOZUICsbmTpzJuZ448R4qp164xDcPFrCYRx1PbZ11ZNQ02dHdM8_lWZ8J61tDaY0TpiuqZa1hTbjiX0Jm4MZNndUtpp7fe7dptphKIkQcN_tOAVYDxhMcFTXFDX3DRxfR6K0G9os0sKSz1CDbuzVBK2A-nHrf2aUtWg1zvqmu8rRKtxPIxIP8DH4oQS',
-};
-
-function StudentClasses({ onOpen }: { onOpen: () => void }) {
-  const courses = [
-    { title: 'Matematicas', progress: 78, color: '#0058bd', image: studentImages.math, icon: <Sparkles /> },
-    { title: 'Ciencias', progress: 84, color: '#00873b', image: studentImages.science, icon: <Flame /> },
-    { title: 'Lenguaje', progress: 62, color: '#735c00', image: studentImages.language, icon: <BookOpen /> },
-    { title: 'Arte y Dibujo', progress: 45, color: '#ba1a1a', image: studentImages.robot, icon: <Award /> },
-  ];
-
-  return (
-    <StudentPage title="Mis Cursos" subtitle="¡Hola Leo! Estos son todos los cursos que llevas. ¿Por dónde quieres empezar?">
-      <div className="grid gap-6 lg:grid-cols-2">
-        {courses.map((course, index) => (
-          <article className={`student-card-hover overflow-hidden rounded-[2rem] border border-[#e2e8f7] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${index === 0 ? 'lg:col-span-2 lg:grid lg:grid-cols-[1.1fr_0.9fr]' : ''}`} key={course.title}>
-            <div className="p-7">
-              <span className="mb-5 inline-grid h-14 w-14 place-items-center rounded-2xl text-white" style={{ backgroundColor: course.color }}>{course.icon}</span>
-              <h3 className="text-3xl font-bold" style={{ color: course.color }}>{course.title}</h3>
-              <p className="mt-2 text-lg font-medium text-[#414754]">Aventura de aprendizaje con retos, recursos y progreso guiado.</p>
-              <div className="mt-6 h-4 rounded-full bg-[#e2e8f7]">
-                <span className="block h-full rounded-full bg-[#0c70ea]" style={{ width: `${course.progress}%` }} />
-              </div>
-              <div className="mt-3 flex items-center justify-between text-sm font-bold text-[#414754]">
-                <span>Progreso</span>
-                <span>{course.progress}%</span>
-              </div>
-              <button className="student-pressable mt-6 rounded-xl bg-[#0058bd] px-6 py-4 font-bold text-white" onClick={onOpen} type="button">Continuar Aventura</button>
-            </div>
-            <img alt={course.title} className={`${index === 0 ? 'h-80 lg:h-full' : 'h-56'} w-full object-cover`} src={course.image} />
-          </article>
-        ))}
-      </div>
-    </StudentPage>
-  );
-}
-
-function StudentTasks() {
-  const taskOptions = [
-    {
-      title: 'Las Fracciones Divertidas',
-      course: 'Matematicas',
-      short: 'Dibuja y representa fracciones con una pizza.',
-      kind: 'Entrega de archivo',
-      due: 'Viernes 18',
-      instructions: 'Dibuja una pizza, dividela en 4 partes iguales, colorea 2 partes y sube una foto o PDF.',
-      mode: 'upload',
-      color: '#0058bd',
-      soft: '#d8e2ff',
-    },
-    {
-      title: 'Comprension: El Dragon Azul',
-      course: 'Lenguaje',
-      short: 'Responde una pregunta corta del cuento.',
-      kind: 'Ejercicio en linea',
-      due: 'Jueves 17',
-      instructions: 'Lee el cuento y responde: ¿Que aprendio el dragon al final de la historia?',
-      mode: 'exercise',
-      color: '#735c00',
-      soft: '#ffe085',
-    },
-    {
-      title: 'Mini laboratorio de semillas',
-      course: 'Ciencias',
-      short: 'Sube evidencia de tu experimento.',
-      kind: 'Entrega de evidencia',
-      due: 'Lunes 21',
-      instructions: 'Toma una foto de tu experimento y escribe que cambio observaste en la semilla.',
-      mode: 'upload',
-      color: '#006b2d',
-      soft: '#76fd94',
-    },
-  ];
-  const [openTask, setOpenTask] = useState('');
-
-  return (
-    <StudentPage title="Centro de Tareas" subtitle="Espacio para revisar instrucciones y subir tus entregas.">
-      <div className="grid gap-5">
-        {taskOptions.map((task, index) => {
-          const isOpen = openTask === task.title;
-          return (
-          <article
-            className="student-card-hover overflow-hidden rounded-[2rem] border-2 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
-            key={task.title}
-            style={{ borderColor: isOpen ? task.color : '#e2e8f7' }}
-          >
-            <button className="grid w-full gap-4 p-6 text-left md:grid-cols-[72px_1fr_auto]" onClick={() => setOpenTask(isOpen ? '' : task.title)} type="button">
-              <span className="grid h-16 w-16 place-items-center rounded-2xl text-white" style={{ backgroundColor: task.color }}>{[<Sparkles />, <BookOpen />, <Flame />][index]}</span>
-              <span>
-                <span className="inline-flex rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: task.soft, color: '#151c26' }}>{task.course}</span>
-                <strong className="mt-3 block text-2xl text-[#151c26]">{task.title}</strong>
-                <small className="mt-1 block text-base font-medium text-[#414754]">{task.short}</small>
-              </span>
-              <span className="self-center rounded-full bg-[#eff4ff] px-4 py-2 text-sm font-bold text-[#0058bd]">{isOpen ? 'Ocultar' : 'Ver tarea'}</span>
-            </button>
-            {isOpen && (
-              <div className="border-t border-[#e2e8f7] bg-[#f8f9ff] p-6">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <StudentChip label="Tipo" value={task.kind} />
-                  <StudentChip label="Entrega" value={task.due} />
-                  <StudentChip label="Recompensa" value="+20 estrellas" />
-                </div>
-                <p className="mt-5 text-lg font-medium text-[#414754]">{task.instructions}</p>
-                {task.mode === 'upload' ? (
-                  <div className="mt-5 rounded-xl border-4 border-dashed border-[#adc6ff] bg-white p-8 text-center transition hover:bg-[#eff4ff]">
-                    <span className="student-pressable mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#0c70ea] text-white"><Upload size={38} /></span>
-                    <p className="mt-4 text-xl font-bold text-[#0058bd]">Subir archivo de esta tarea</p>
-                    <input className="mt-5 w-full max-w-sm rounded-xl border-2 border-[#c1c6d6] bg-white px-4 py-3 text-[#151c26]" type="file" />
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-xl border-2 border-[#adc6ff] bg-white p-6">
-                    <textarea className="min-h-40 w-full rounded-xl border-2 border-[#c1c6d6] bg-white p-4 text-[#151c26] outline-none focus:border-[#0058bd]" placeholder="Escribe tu respuesta aqui..." />
-                    <button className="student-pressable mt-5 rounded-xl bg-[#0058bd] px-6 py-4 font-bold text-white" type="button">Enviar ejercicio</button>
-                  </div>
-                )}
-              </div>
-            )}
-          </article>
-        )})}
-      </div>
-    </StudentPage>
-  );
-}
-
-function StudentGrades() {
-  return (
-    <StudentPage title="Mis Notas y Progreso" subtitle="Consulta notas de unidad, materia y tareas calificadas.">
-      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <StudentCard>
-          <div className="grid place-items-center rounded-[2rem] bg-[#0058bd] p-8 text-center text-white">
-            <Star className="text-[#fdd029]" size={50} />
-            <strong className="mt-4 text-6xl font-bold">90%</strong>
-            <span className="mt-2 font-bold">Promedio general</span>
-          </div>
-          <div className="mt-5 flex items-center gap-3 rounded-3xl bg-[#eff4ff] p-4">
-            <img alt="Teacher Avatar" className="h-16 w-16 rounded-2xl object-cover" src={studentImages.teacher} />
-            <p className="font-medium text-[#414754]">Tu maestra dice: sigue practicando lectura guiada y fracciones.</p>
-          </div>
-        </StudentCard>
-        <StudentCard>
-          <div className="space-y-4">
-            {grades.map((grade) => (
-              <div className="rounded-3xl border border-[#e2e8f7] bg-[#f8f9ff] p-4" key={grade.course}>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-[#151c26]">{grade.course}</h3>
-                    <p className="font-medium text-[#414754]">{grade.note}</p>
-                  </div>
-                  <span className="rounded-2xl bg-[#fdd029] px-4 py-2 text-2xl font-bold text-[#231b00]">{grade.score}</span>
-                </div>
-                <div className="mt-4 h-4 rounded-full bg-[#dce3f1]"><span className="block h-full rounded-full bg-[#00873b]" style={{ width: `${grade.score}%` }} /></div>
-              </div>
-            ))}
-          </div>
-        </StudentCard>
-      </div>
-      <div className="grid gap-5 lg:grid-cols-3">
-        {[
-          ['Unidad 1: Los Planetas', '100%', '#00873b'],
-          ['Unidad 2: Animales de la Selva', '92%', '#0c70ea'],
-          ['Unidad 3: Sumas Divertidas', '45%', '#fdd029'],
-        ].map(([unit, value, color]) => (
-          <StudentCard key={unit}>
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-[#151c26]">{unit}</h3>
-              <span className="font-bold text-[#0058bd]">{value}</span>
-            </div>
-            <div className="mt-4 h-6 overflow-hidden rounded-full bg-[#e2e8f7]">
-              <span className="block h-full rounded-full transition-all duration-1000" style={{ width: value, backgroundColor: color }} />
-            </div>
-          </StudentCard>
-        ))}
-      </div>
-      <StudentCard>
-        <div className="mb-5 flex flex-col justify-between gap-3 md:flex-row md:items-end">
-          <div>
-            <h3 className="text-2xl font-bold text-[#151c26]">Notas de tareas por curso</h3>
-            <p className="text-lg font-medium text-[#414754]">Detalle de entregas calificadas, pendientes y observaciones del docente.</p>
-          </div>
-          <select className="rounded-xl border-2 border-[#c1c6d6] bg-white px-4 py-3 font-bold text-[#151c26]">
-            <option>Matematicas</option>
-            <option>Lenguaje</option>
-            <option>Ciencias</option>
-          </select>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            ['Tabla del 7', '10/10', 'Excelente rapidez'],
-            ['Fracciones Divertidas', 'Pendiente', 'Esperando entrega'],
-            ['Problemas con dibujos', '8/10', 'Revisar procedimiento'],
-          ].map(([task, score, note]) => (
-            <div className="rounded-3xl border border-[#e2e8f7] bg-[#f8f9ff] p-5" key={task}>
-              <h4 className="text-lg font-bold text-[#151c26]">{task}</h4>
-              <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-sm font-bold ${score === 'Pendiente' ? 'bg-[#ffe085] text-[#231b00]' : 'bg-[#76fd94] text-[#002109]'}`}>{score}</span>
-              <p className="mt-3 font-medium text-[#414754]">{note}</p>
-            </div>
-          ))}
-        </div>
-      </StudentCard>
-    </StudentPage>
-  );
-}
-
-function StudentCalendar() {
-  const events = ['Examen de Matematicas', 'Entrega de lectura', 'Taller de Arte'];
-  return (
-    <StudentPage title="Calendario de Aventuras" subtitle="Organiza tus retos, examenes y actividades especiales.">
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        <StudentCard>
-          <div className="mb-5 flex items-center justify-between">
-            <button className="grid h-11 w-11 place-items-center rounded-full bg-[#eff4ff] font-bold text-[#0058bd]" type="button">{'<'}</button>
-            <h3 className="text-2xl font-bold text-[#151c26]">Octubre 2026</h3>
-            <button className="grid h-11 w-11 place-items-center rounded-full bg-[#eff4ff] font-bold text-[#0058bd]" type="button">{'>'}</button>
-          </div>
-          <CalendarBoard />
-        </StudentCard>
-        <aside className="space-y-4">
-          {events.map((event, index) => (
-            <StudentCard key={event}>
-              <span className="inline-grid h-12 w-12 place-items-center rounded-2xl bg-[#d8e2ff] text-[#0058bd]">{[<ClipboardList />, <BookOpen />, <Award />][index]}</span>
-              <h3 className="mt-4 text-xl font-bold text-[#151c26]">{event}</h3>
-              <p className="mt-1 font-medium text-[#414754]">{['12 Oct', '18 Oct', '24 Oct'][index]} · Aventura programada</p>
-            </StudentCard>
-          ))}
-        </aside>
-      </div>
-    </StudentPage>
-  );
-}
-
-function StudentLibrary() {
-  return (
-    <StudentPage title="Mi Biblioteca de Recursos" subtitle="Recursos que tus profesores prepararon para tus cursos.">
-      <div className="rounded-[2rem] bg-white p-5 shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
-        <label className="relative block">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#414754]" />
-          <input className="h-14 w-full rounded-xl border-2 border-[#e2e8f7] bg-[#f8f9ff] pl-12 pr-4 text-lg font-medium text-[#151c26] outline-none focus:border-[#0058bd]" placeholder="¿Que recurso buscas hoy?" />
-        </label>
-        <div className="mt-4 flex gap-2 overflow-x-auto">
-          {["Todos", "PDFs", "Videos", "Enlaces"].map((filter, index) => (
-            <button className={`h-12 whitespace-nowrap rounded-full px-6 font-bold ${index === 0 ? "bg-[#0058bd] text-white" : "bg-[#e2e8f7] text-[#414754] hover:bg-[#d8e2ff]"}`} key={filter} type="button">{filter}</button>
-          ))}
-        </div>
-      </div>
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {resources.map((resource, index) => (
-          <StudentCard key={resource.title}>
-            <span className="inline-grid h-14 w-14 place-items-center rounded-2xl bg-[#fdd029] text-[#231b00]">{[<BookOpen />, <FileText />, <Upload />][index % 3]}</span>
-            <h3 className="mt-5 text-xl font-bold text-[#151c26]">{resource.title}</h3>
-            <p className="mt-2 font-medium text-[#414754]">{resource.type} · {resource.minutes} min</p>
-            <button className="mt-5 w-full rounded-3xl bg-[#0058bd] px-5 py-3 font-bold text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.2)]" type="button">Abrir recurso</button>
-          </StudentCard>
-        ))}
-        <div className="rounded-[2rem] bg-[#0c70ea] p-7 text-center text-white shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
-          <img alt="Teacher Avatar" className="mx-auto mb-4 h-20 w-20 rounded-full border-4 border-[#d8e2ff] object-cover" src={studentImages.teacher} />
-          <p className="text-lg font-bold italic">"¡Recuerda revisar el material antes del examen del viernes!"</p>
-          <p className="mt-2 text-sm font-bold text-white/80">- Profe Ana</p>
-        </div>
-      </div>
-    </StudentPage>
-  );
-}
-
-function StudentDiary({ onOpenLibrary }: { onOpenLibrary: () => void }) {
-  return (
-    <StudentPage title="Tus Superpoderes Hoy" subtitle="Recomendaciones IA, medallas y diario de aventura.">
-      <section className="grid gap-6 rounded-[2rem] bg-[#d8e2ff] p-7 shadow-[0_8px_24px_rgba(0,0,0,0.06)] lg:grid-cols-[1fr_300px]">
-        <div>
-          <span className="student-float inline-grid h-14 w-14 place-items-center rounded-2xl bg-[#0058bd] text-white"><Sparkles /></span>
-          <h2 className="mt-4 text-3xl font-bold text-[#151c26]">Refuerza Matematicas con una aventura corta</h2>
-          <p className="mt-3 text-lg font-medium leading-8 text-[#414754]">La IA detecto que hoy puedes mejorar fracciones con un recurso visual de 12 minutos.</p>
-          <button className="student-pressable mt-6 rounded-xl bg-[#0058bd] px-6 py-4 font-bold text-white" onClick={onOpenLibrary} type="button">Ver recurso recomendado</button>
-        </div>
-        <img alt="Mascota motivadora" className="student-float h-72 w-full object-contain" src={studentImages.dog} />
-      </section>
-      <div className="grid gap-5 md:grid-cols-3">
-        {['Explorador Constante', 'Matematico Estrella', 'Lector Curioso'].map((medal, index) => (
-          <StudentCard key={medal}>
-            <span className={`student-medal-shimmer mx-auto grid h-24 w-24 place-items-center rounded-full border-4 border-white shadow-lg ${index === 0 ? 'bg-[#fdd029] text-[#231b00]' : index === 1 ? 'bg-[#76fd94] text-[#002109]' : 'bg-[#d8e2ff] text-[#001a41]'}`}>
-              <Trophy size={44} />
-            </span>
-            <h3 className="mt-4 text-center text-xl font-bold text-[#151c26]">{medal}</h3>
-          </StudentCard>
-        ))}
-      </div>
-    </StudentPage>
-  );
-}
-
-function StudentProfile({ onLogout }: { onLogout: () => void }) {
-  const interests = ['Espacio', 'Dibujo', 'Ciencia', 'Musica', 'Historia', 'Lectura', 'Deportes', 'Tecnologia', 'Animales'];
-  const [selectedInterests, setSelectedInterests] = useState(['Dibujo', 'Ciencia']);
-  const toggleInterest = (interest: string) => {
-    setSelectedInterests((current) =>
-      current.includes(interest) ? current.filter((item) => item !== interest) : [...current, interest],
-    );
-  };
-
-  return (
-    <StudentPage title="Mi Perfil de Explorador" subtitle="Elige tu companero de aventuras y personaliza tus intereses.">
-      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-        <StudentCard>
-          <div className="mx-auto aspect-square max-w-64 overflow-hidden rounded-full border-8 border-[#fdd029] bg-[#eff4ff]">
-            <img alt="Main Avatar" className="h-full w-full object-cover" src={studentImages.profile} />
-          </div>
-          <h3 className="mt-5 text-center text-2xl font-bold text-[#151c26]">Leo el Valiente</h3>
-          <p className="text-center font-medium text-[#414754]">Nivel 5 · 1,240 estrellas</p>
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            {[studentImages.avatar, studentImages.dog, studentImages.robot].map((image, index) => (
-              <button className={`rounded-2xl border-2 p-2 transition active:scale-95 ${index === 0 ? 'border-[#0058bd] bg-[#d8e2ff]' : 'border-transparent bg-[#eff4ff] hover:border-[#0058bd]'}`} key={image} type="button">
-                <img alt="Avatar opcional" className="aspect-square w-full rounded-full object-cover" src={image} />
-              </button>
-            ))}
-          </div>
-          <button className="student-pressable mt-6 w-full rounded-xl bg-[#fdd029] px-5 py-4 font-bold text-[#231b00]" type="button">Guardar cambios</button>
-        </StudentCard>
-        <StudentCard>
-          <h3 className="text-2xl font-bold text-[#151c26]">Mis Gustos e Intereses</h3>
-          <p className="mt-2 text-lg font-medium text-[#414754]">Selecciona lo que mas te emociona aprender. Estos datos ayudan al sistema a recomendar recursos y actividades.</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            {interests.map((interest, index) => (
-              <button
-                className={`student-card-hover rounded-full border-2 px-5 py-3 font-bold ${
-                  selectedInterests.includes(interest)
-                    ? 'border-[#0058bd] bg-[#0c70ea] text-white shadow-md'
-                    : index % 2 === 0
-                      ? 'border-transparent bg-[#d8e2ff] text-[#001a41]'
-                      : 'border-transparent bg-[#76fd94] text-[#002109]'
-                }`}
-                key={interest}
-                onClick={() => toggleInterest(interest)}
-                type="button"
-              >
-                {interest}
-              </button>
-            ))}
-          </div>
-          <div className="mt-6 rounded-[2rem] border border-[#e2e8f7] bg-[#eff4ff] p-5">
-            <h4 className="text-lg font-bold text-[#151c26]">Intereses guardados para recomendaciones</h4>
-            <p className="mt-2 font-medium text-[#414754]">{selectedInterests.join(', ') || 'Selecciona al menos un interes.'}</p>
-          </div>
-          <div className="mt-8 rounded-[2rem] bg-[#f8f9ff] p-5">
-            <h4 className="text-xl font-bold text-[#151c26]">Mensaje motivador</h4>
-            <p className="mt-2 text-lg font-medium text-[#414754]">Leo, tu constancia esta desbloqueando nuevas aventuras. Sigue explorando.</p>
-          </div>
-          <div className="mt-6 rounded-[2rem] border border-[#e2e8f7] bg-white p-5">
-            <h4 className="text-xl font-bold text-[#151c26]">Opciones del perfil</h4>
-            <button className="student-pressable mt-4 inline-flex items-center gap-2 rounded-xl bg-[#fdd029] px-6 py-4 font-bold text-[#231b00]" onClick={onLogout} type="button">
-              <LogOut size={18} />
-              Cerrar sesion
-            </button>
-          </div>
-        </StudentCard>
-      </div>
-    </StudentPage>
-  );
 }
 
 function FamilyViews({ view, setView, selectedChild, onChildChange, onLogout }: { view: View; setView: (view: View) => void; selectedChild: FamilyChild; onChildChange: (child: FamilyChild) => void; onLogout: () => void }) {
@@ -2783,65 +2288,6 @@ function FamilySettings({ child, childrenList, onChildChange, onLogout }: { chil
   );
 }
 
-function StudentPage({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
-  return (
-    <div className="mx-auto max-w-[1200px] space-y-6 pb-24 text-[#151c26] lg:pb-0" style={{ fontFamily: "'Quicksand', 'Segoe UI', sans-serif" }}>
-      <header className="rounded-[2rem] border border-[#d8e2ff] bg-white px-6 py-5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
-        <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#0058bd]">Aventura Kids</p>
-        <h2 className="mt-1 text-4xl font-bold tracking-normal md:text-5xl" style={{ color: '#0058bd' }}>{title}</h2>
-        <p className="mt-2 max-w-3xl text-xl font-medium leading-8" style={{ color: '#243047' }}>{subtitle}</p>
-      </header>
-      {children}
-    </div>
-  );
-}
-
-function StudentCard({ children }: { children: ReactNode }) {
-  return <section className="rounded-[2rem] border border-[#e2e8f7] bg-white p-6 shadow-[0_8px_24px_rgba(0,0,0,0.06)]">{children}</section>;
-}
-
-function StudentStat({ title, value, detail, icon }: { title: string; value: string; detail: string; icon: ReactNode }) {
-  return (
-    <StudentCard>
-      <div className="mb-4 flex items-start justify-between">
-        <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#eff4ff] text-[#0058bd]">{icon}</span>
-        <span className="rounded-full bg-[#76fd94] px-3 py-1 text-sm font-bold text-[#002109]">{detail}</span>
-      </div>
-      <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#414754]">{title}</p>
-      <strong className="text-4xl font-bold text-[#151c26]">{value}</strong>
-    </StudentCard>
-  );
-}
-
-function StudentMission({ title, subject, icon, action }: { title: string; subject: string; icon: ReactNode; action: () => void }) {
-  return (
-    <button className="rounded-[2rem] border border-[#e2e8f7] bg-white p-6 text-left shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition hover:-translate-y-1" onClick={action} type="button">
-      <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[#fdd029] text-[#231b00]">{icon}</span>
-      <h3 className="text-2xl font-bold text-[#151c26]">{title}</h3>
-      <p className="mt-2 text-lg font-medium text-[#414754]">{subject}</p>
-      <span className="mt-5 inline-flex rounded-3xl bg-[#0058bd] px-5 py-3 font-bold text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.18)]">Ver aventura</span>
-    </button>
-  );
-}
-
-function StudentChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-3xl bg-white p-4">
-      <p className="text-sm font-bold uppercase tracking-[0.12em] text-[#414754]">{label}</p>
-      <strong className="text-xl font-bold text-[#151c26]">{value}</strong>
-    </div>
-  );
-}
-
-function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
-  return (
-    <label className="relative block w-full max-w-sm">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="admin-input w-full rounded-2xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm outline-none transition focus:border-slate-900 dark:border-slate-700 dark:bg-slate-800" />
-    </label>
-  );
-}
-
 function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -2857,10 +2303,6 @@ function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }
   );
 }
 
-function Person({ name, sub }: { name: string; sub: string }) {
-  return <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-full bg-blue-100 font-black text-blue-700">{initials(name)}</span><div><strong className="block">{name}</strong><span className="text-xs text-slate-500">{sub}</span></div></div>;
-}
-
 function Status({ value }: { value: string }) {
   const tone = value.includes('Riesgo') || value.includes('Conflictiva') || value.includes('Pendiente') ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300' : value.includes('Inactivo') ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300';
   return <span className={`rounded-full px-3 py-1 text-xs font-black ${tone}`}>{value}</span>;
@@ -2872,30 +2314,6 @@ function FormGrid({ fields, button }: { fields: string[]; button: string }) {
       {fields.map((field) => <label key={field} className={field.includes('Descripcion') || field.includes('Mensaje') || field.includes('Observacion') ? 'md:col-span-2' : ''}><span className="text-xs font-black uppercase tracking-wider text-[#5d6b82]">{field}</span><input className="admin-input mt-2 w-full rounded-2xl border border-[#c3c6d7] bg-white px-4 py-3 text-sm text-[#191c1e] outline-none transition focus:border-[#004ac6] focus:ring-2 focus:ring-[#004ac6]/15" /></label>)}
       <button className="rounded-2xl bg-[#1f5eff] px-5 py-3 font-black text-white transition hover:bg-[#004ac6] md:col-span-2">{button}</button>
     </form>
-  );
-}
-
-function CalendarBoard() {
-  return (
-    <div className="grid grid-cols-7 gap-2">
-      {Array.from({ length: 30 }, (_, i) => i + 1).map((day) => {
-        const hasEvent = [4, 12, 21].includes(day);
-        return (
-          <button
-            key={day}
-            className={`min-h-16 rounded-2xl border p-2 text-left text-xs font-black transition hover:-translate-y-0.5 ${
-              hasEvent
-                ? 'border-[#adc6ff] bg-[#d8e2ff] text-[#001a41]'
-                : 'border-[#e2e8f7] bg-white text-[#414754] hover:bg-[#eff4ff]'
-            }`}
-            type="button"
-          >
-            {day}
-            {day === 12 && <span className="mt-1 block truncate rounded bg-[#fdd029] px-1 py-0.5 text-[10px] text-[#231b00]">Taller</span>}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
