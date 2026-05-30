@@ -58,8 +58,35 @@ function getApiBaseUrl(): string {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  });
+
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+    const storedUser = localStorage.getItem(USER_STORAGE_KEY);
+
+    if (storedToken) {
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          if (parsed && typeof parsed.idUsuario === 'number' && typeof parsed.idRol === 'number' && parsed.nombre) {
+            return parsed;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // Si no hay un usuario recuperado con estructura válida, decodificar el token JWT
+      const decoded = decodeUserFromToken(storedToken);
+      if (decoded) {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(decoded));
+        return decoded;
+      }
+    }
+    return null;
+  });
 
   const isAuthenticated = !!token && !!user;
 
@@ -140,17 +167,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedUser = localStorage.getItem(USER_STORAGE_KEY);
 
     if (storedToken) {
-      setToken(storedToken);
+      let validUser: AuthUser | null = null;
+
       if (storedUser) {
         try {
-          setUser(JSON.parse(storedUser));
+          const parsed = JSON.parse(storedUser);
+          // Verificar que el objeto de sesión recuperado tenga la estructura correcta para esta rama estable
+          if (parsed && typeof parsed.idUsuario === 'number' && typeof parsed.idRol === 'number' && parsed.nombre) {
+            validUser = parsed;
+          }
         } catch {
-          const decoded = decodeUserFromToken(storedToken);
-          if (decoded) setUser(decoded);
+          // ignore
         }
+      }
+
+      // Si no hay un usuario recuperado con estructura válida en localStorage, decodificar el token JWT
+      if (!validUser) {
+        validUser = decodeUserFromToken(storedToken);
+      }
+
+      if (validUser) {
+        setToken(storedToken);
+        setUser(validUser);
+        // Resincronizar la sesión en localStorage con datos correctos
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(validUser));
       } else {
-        const decoded = decodeUserFromToken(storedToken);
-        if (decoded) setUser(decoded);
+        // Si el token tampoco es decodificable o válido, forzar logout preventivo
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        localStorage.removeItem(USER_STORAGE_KEY);
+        setToken(null);
+        setUser(null);
       }
     }
   }, []);

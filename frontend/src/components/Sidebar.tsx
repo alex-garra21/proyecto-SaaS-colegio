@@ -339,8 +339,8 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: Sideb
             {isCollapsed ? (
               <>
                 {/* Avatar circular */}
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white font-bold text-xs shadow-sm" title={`${user.nombre} (${roleLabel(user.idRol)})`}>
-                  {user.nombre.substring(0, 2).toUpperCase()}
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white font-bold text-xs shadow-sm" title={`${user.nombre || 'Usuario'} (${roleLabel(user.idRol)})`}>
+                  {(user?.nombre || 'Usuario').substring(0, 2).toUpperCase()}
                 </div>
                 
                 {/* Botón de Logout */}
@@ -357,7 +357,7 @@ export default function Sidebar({ activeTab, setActiveTab, onOpenConfig }: Sideb
                 <div className="flex items-center gap-2.5 min-w-0">
                   {/* Avatar circular premium con iniciales */}
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white font-bold text-xs shadow-sm">
-                    {user.nombre.substring(0, 2).toUpperCase()}
+                    {(user?.nombre || 'Usuario').substring(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0 animate-in fade-in duration-300">
                     <span className="block text-[11px] font-bold text-slate-900 truncate leading-tight">

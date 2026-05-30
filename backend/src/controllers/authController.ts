@@ -6,6 +6,7 @@ import { getPool } from '../config/db.js';
 interface UsuarioAutenticado {
   IdUsuario: number;
   Nombre: string;
+  NombreCompleto?: string;
   Correo: string;
   IdRol: number;
   Estado?: boolean | number;
@@ -54,10 +55,12 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const nombreReal = usuario.NombreCompleto || usuario.Nombre || 'Usuario SIGE';
+
     const token = jwt.sign(
       {
         IdUsuario: usuario.IdUsuario,
-        Nombre: usuario.Nombre,
+        Nombre: nombreReal,
         IdRol: usuario.IdRol,
       },
       jwtSecret,
@@ -68,7 +71,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       token,
       usuario: {
         idUsuario: usuario.IdUsuario,
-        nombre: usuario.Nombre,
+        nombre: nombreReal,
         correo: usuario.Correo,
         idRol: usuario.IdRol,
       },

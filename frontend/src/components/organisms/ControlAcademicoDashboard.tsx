@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, BookOpen, Layers, Calendar, 
   Users, CheckSquare, ShieldAlert, 
@@ -6,27 +6,56 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../atoms/CustomSelect';
 import { useToast } from '../../context/ToastContext';
-import type { CursoBase } from '../../interfacesAcademicas';
+import { useAuth } from '../../context/AuthContext';
 
 interface SeccionAsignada {
-  id: string;
+  id: number;
   nombreAsignacion: string;
-  gradoId: 'FIRST_BASIC' | 'SECOND_BASIC' | 'THIRD_BASIC';
+  gradoId: number;
+  letraSeccion: string;
   cicloAnio: number;
-  estudiantesIds: string[];
+  codigoAula: string;
 }
 
 interface PeriodoHorario {
-  id: string;
-  docenteId: string;
-  docenteNombre: string;
-  cursoId: string;
-  cursoNombre: string;
-  seccionId: string;
-  seccionNombre: string;
-  diaSemana: number; // 1 = Lunes, 5 = Viernes
-  horaInicio: string; // "HH:MM"
+  id: number;
+  numeroPeriodo: number;
+  horaInicio: string;
   horaFin: string;
+  esReceso: boolean;
+}
+
+interface HorarioClaseRow {
+  id: number;
+  seccionId: number;
+  seccionNombre: string;
+  cursoId: number;
+  cursoNombre: string;
+  docenteId: number;
+  docenteNombre: string;
+  diaSemana: number;
+  horaInicio: string;
+  horaFin: string;
+  periodoId: number;
+  numeroPeriodo: number;
+  cicloId?: number;
+  cicloAnio?: number;
+}
+
+interface CicloEscolarRow {
+  id: number;
+  anio: number;
+  estado: boolean;
+}
+
+interface StudentMatriculaRow {
+  id: number;
+  nombre: string;
+  correo: string;
+  matriculadoSeccionId: number | null;
+  matriculadoSeccionNombre: string | null;
+  encargadoNombre: string | null;
+  encargadoId: number | null;
 }
 
 interface PagoAsentado {
@@ -45,20 +74,23 @@ interface ControlAcademicoDashboardProps {
 
 export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcademicoDashboardProps) {
   const { showToast } = useToast();
+  const { token } = useAuth();
 
-  // --- 1. ESTADOS PARA CATÁLOGOS BASE ---
-  const [cursos, setCursos] = useState<CursoBase[]>([
-    { id: 'CUR-MAT', nombre: 'Matemáticas' },
-    { id: 'CUR-LEN', nombre: 'Lenguaje y Literatura' },
-    { id: 'CUR-FIS', nombre: 'Física Clásica' },
-    { id: 'CUR-CIE', nombre: 'Ciencias Naturales' }
-  ]);
+  // --- ESTADOS DE DATOS DINÁMICOS ---
+  const [secciones, setSecciones] = useState<SeccionAsignada[]>([]);
+  const [periodos, setPeriodos] = useState<PeriodoHorario[]>([]);
+  const [horarios, setHorarios] = useState<HorarioClaseRow[]>([]);
+  const [matriculas, setMatriculas] = useState<StudentMatriculaRow[]>([]);
+  const [cursos, setCursos] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [ciclosEscolares, setCiclosEscolares] = useState<CicloEscolarRow[]>([]);
+
+  // Estados de carga
+  const [loading, setLoading] = useState(false);
+
+  // --- ESTADOS PARA CATÁLOGOS BASE ---
   const [nuevoCursoNombre, setNuevoCursoNombre] = useState('');
-  const [selectedGrado, setSelectedGrado] = useState<number>(1); // 1 = Primero Básico, 2 = Segundo Básico, 3 = Tercero Básico
-  const [ciclos, setCiclos] = useState<{ anio: number; activo: boolean }[]>([
-    { anio: 2025, activo: false },
-    { anio: 2026, activo: true }
-  ]);
+  const [selectedGrado, setSelectedGrado] = useState<number>(1); // 1 = Primero, 2 = Segundo, 3 = Tercero
 
   const gradoOptions = [
     { value: 1, label: 'Primero Básico' },
@@ -66,193 +98,377 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
     { value: 3, label: 'Tercero Básico' }
   ];
 
-  const handleAddCurso = (e: React.FormEvent) => {
+  const [ciclos] = useState<{ anio: number; activo: boolean }[]>([
+    { anio: 2025, activo: false },
+    { anio: 2026, activo: true }
+  ]);
+
+  // --- ESTADOS PARA SECCIONES ---
+  const [seccionGrado, setSeccionGrado] = useState<number>(1);
+  const seccionCiclo = 2026;
+  const [seccionLetra, setSeccionLetra] = useState<string>('A');
+  const [seccionAula, setSeccionAula] = useState<string>('Aula 101');
+
+  // --- ESTADOS PARA HORARIOS PERIODO A PERIODO ---
+  const [nuevoPeriodoDocente, setNuevoPeriodoDocente] = useState<string>('');
+  const [nuevoPeriodoCurso, setNuevoPeriodoCurso] = useState<string>('');
+  const [nuevoPeriodoSeccion, setNuevoPeriodoSeccion] = useState<string>('');
+  const [nuevoPeriodoDia, setNuevoPeriodoDia] = useState<number>(1); // 1 = Lunes, 5 = Viernes
+  const [nuevoPeriodoHora, setNuevoPeriodoHora] = useState<string>(''); // IdPeriodo
+  const [nuevoPeriodoCiclo, setNuevoPeriodoCiclo] = useState<string>(''); // IdCiclo
+  
+  // Alerta de colisión controlada por backend HTTP 409
+  const [colisionBackendError, setColisionBackendError] = useState<boolean>(false);
+
+  // --- ESTADOS PARA VINCULACIÓN Y MATRÍCULA ---
+  const [selectedStudent, setSelectedStudent] = useState<StudentMatriculaRow | null>(null);
+  const [matriculaSeccion, setMatriculaSeccion] = useState<string>('');
+  const [tutorSeleccionado, setTutorSeleccionado] = useState<string>('');
+
+  // --- ESTADOS PARA COBRO DE CAJA MANUAL ---
+  const [pagos, setPagos] = useState<PagoAsentado[]>([
+    { id: 'PAG-101', estudianteId: '1', estudianteNombre: 'Juan Pérez', mesCiclo: 1, monto: 400, referenciaRecibo: 'REC-5020', fechaTransaccion: '2026-05-29' },
+    { id: 'PAG-102', estudianteId: '2', estudianteNombre: 'María Gómez', mesCiclo: 1, monto: 400, referenciaRecibo: 'REC-5021', fechaTransaccion: '2026-05-29' }
+  ]);
+  const [pagoEstudiante, setPagoEstudiante] = useState('');
+  const [pagoMes, setPagoMes] = useState<number>(2); // Febrero
+  const [pagoMonto, setPagoMonto] = useState('400');
+  const [pagoRecibo, setPagoRecibo] = useState('');
+
+  // --- CARGA EN CALIENTE DE LA BASE DE DATOS LOCAL ---
+  const loadData = async () => {
+    if (!token) return;
+    setLoading(true);
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    try {
+      // 1. Cargar secciones V2
+      const resSec = await fetch('http://localhost:4000/api/admin/secciones', { headers });
+      if (resSec.ok) {
+        const data = await resSec.json();
+        setSecciones(data);
+      }
+
+      // 2. Cargar periodos horarios V2
+      const resPer = await fetch('http://localhost:4000/api/admin/periodos', { headers });
+      if (resPer.ok) {
+        const data = await resPer.json();
+        setPeriodos(data);
+      }
+
+      // 3. Cargar cronograma de HorarioClase
+      const resHor = await fetch('http://localhost:4000/api/admin/horarios', { headers });
+      if (resHor.ok) {
+        const data = await resHor.json();
+        setHorarios(data);
+      }
+
+      // 4. Cargar nómina de matrículas (Estudiantes, Secciones y Encargados)
+      const resMat = await fetch('http://localhost:4000/api/admin/matriculas', { headers });
+      if (resMat.ok) {
+        const data = await resMat.json();
+        setMatriculas(data);
+      }
+
+      // 5. Cargar materias (cursos)
+      const resCur = await fetch('http://localhost:4000/api/admin/materias', { headers });
+      if (resCur.ok) {
+        const data = await resCur.json();
+        setCursos(data);
+      }
+
+      // 6. Cargar todos los usuarios del sistema
+      const resUser = await fetch('http://localhost:4000/api/users', { headers });
+      if (resUser.ok) {
+        const data = await resUser.json();
+        setUsuarios(data);
+      }
+
+      // 7. Cargar ciclos escolares
+      const resCic = await fetch('http://localhost:4000/api/admin/ciclos', { headers });
+      if (resCic.ok) {
+        const data = await resCic.json();
+        setCiclosEscolares(data);
+      }
+    } catch (err) {
+      console.error('Error al conectar con la API de SQL Server:', err);
+      showToast('Error al conectar con la base de datos local.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [token]);
+
+  // --- CONFIGURAR VALORES DE ENTRADA POR DEFECTO ---
+  useEffect(() => {
+    if (usuarios.length > 0 && !nuevoPeriodoDocente) {
+      const docs = usuarios.filter(u => u.IdRol === 3 || u.IdRol === 2);
+      if (docs.length > 0) setNuevoPeriodoDocente(String(docs[0].IdUsuario));
+    }
+  }, [usuarios, nuevoPeriodoDocente]);
+
+  useEffect(() => {
+    if (cursos.length > 0 && !nuevoPeriodoCurso) {
+      setNuevoPeriodoCurso(String(cursos[0].id));
+    }
+  }, [cursos, nuevoPeriodoCurso]);
+
+  useEffect(() => {
+    if (secciones.length > 0 && !nuevoPeriodoSeccion) {
+      setNuevoPeriodoSeccion(String(secciones[0].id));
+    }
+  }, [secciones, nuevoPeriodoSeccion]);
+
+  useEffect(() => {
+    const periodosClase = periodos.filter(p => !p.esReceso && p.numeroPeriodo > 0);
+    if (periodosClase.length > 0 && !nuevoPeriodoHora) {
+      setNuevoPeriodoHora(String(periodosClase[0].id));
+    }
+  }, [periodos, nuevoPeriodoHora]);
+
+  useEffect(() => {
+    if (secciones.length > 0 && !matriculaSeccion) {
+      setMatriculaSeccion(String(secciones[0].id));
+    }
+  }, [secciones, matriculaSeccion]);
+
+  useEffect(() => {
+    if (ciclosEscolares.length > 0 && !nuevoPeriodoCiclo) {
+      const activo = ciclosEscolares.find(c => c.estado);
+      if (activo) {
+        setNuevoPeriodoCiclo(String(activo.id));
+      } else {
+        setNuevoPeriodoCiclo(String(ciclosEscolares[0].id));
+      }
+    }
+  }, [ciclosEscolares, nuevoPeriodoCiclo]);
+
+  useEffect(() => {
+    const encargados = usuarios.filter(u => u.IdRol === 5);
+    if (encargados.length > 0 && !tutorSeleccionado) {
+      setTutorSeleccionado(String(encargados[0].IdUsuario));
+    }
+  }, [usuarios, tutorSeleccionado]);
+
+  useEffect(() => {
+    if (matriculas.length > 0 && !pagoEstudiante) {
+      setPagoEstudiante(String(matriculas[0].id));
+    }
+  }, [matriculas, pagoEstudiante]);
+
+  // Resetear alerta de colisión del backend si cambian los parámetros
+  useEffect(() => {
+    setColisionBackendError(false);
+  }, [nuevoPeriodoDocente, nuevoPeriodoCurso, nuevoPeriodoSeccion, nuevoPeriodoDia, nuevoPeriodoHora, nuevoPeriodoCiclo]);
+
+  // --- CONTROLADORES DE EVENTOS ASÍNCRONOS HASTA SQL SERVER ---
+
+  // 1. Agregar Curso (Materia)
+  const handleAddCurso = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoCursoNombre.trim()) {
       showToast('Por favor, ingresa el nombre del curso.', 'error');
       return;
     }
-    const nuevoId = `CUR-${nuevoCursoNombre.trim().substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
-    const nuevo: CursoBase = { id: nuevoId, nombre: nuevoCursoNombre.trim() };
-    setCursos(prev => [...prev, nuevo]);
-    setNuevoCursoNombre('');
-    showToast(`Curso "${nuevo.nombre}" agregado con éxito.`, 'success');
-  };
 
-  const handleToggleCiclo = (anio: number) => {
-    setCiclos(prev => prev.map(c => c.anio === anio ? { ...c, activo: !c.activo } : c));
-    showToast(`Ciclo Lectivo ${anio} actualizado.`, 'success');
-  };
-
-  // --- 2. ESTADOS PARA SECCIONES Y HORARIOS (COLLISION CHECKER) ---
-  const [secciones, setSecciones] = useState<SeccionAsignada[]>([
-    { id: 'SEC-101', nombreAsignacion: 'Primero Básico Sección A', gradoId: 'FIRST_BASIC', cicloAnio: 2026, estudiantesIds: ['1', '2'] },
-    { id: 'SEC-102', nombreAsignacion: 'Segundo Básico Sección A', gradoId: 'SECOND_BASIC', cicloAnio: 2026, estudiantesIds: ['3'] }
-  ]);
-
-  const [seccionGrado, setSeccionGrado] = useState<number>(1);
-  const seccionCiclo = 2026;
-  const [seccionLetra, setSeccionLetra] = useState<string>('A');
-
-  const [horarios, setHorarios] = useState<PeriodoHorario[]>([
-    {
-      id: 'HOR-1',
-      docenteId: 'DOC-10',
-      docenteNombre: 'Prof. Marcos Alonso',
-      cursoId: 'CUR-LEN',
-      cursoNombre: 'Lenguaje y Literatura',
-      seccionId: 'SEC-101',
-      seccionNombre: 'Primero Básico Sección A',
-      diaSemana: 1, // Lunes
-      horaInicio: '07:30',
-      horaFin: '08:15'
-    },
-    {
-      id: 'HOR-2',
-      docenteId: 'DOC-12',
-      docenteNombre: 'Profe Ana',
-      cursoId: 'CUR-MAT',
-      cursoNombre: 'Matemáticas',
-      seccionId: 'SEC-101',
-      seccionNombre: 'Primero Básico Sección A',
-      diaSemana: 1, // Lunes
-      horaInicio: '08:15',
-      horaFin: '09:00'
-    }
-  ]);
-
-  const [nuevoPeriodoDocente, setNuevoPeriodoDocente] = useState<string>('DOC-10'); // Prof. Marcos Alonso
-  const [nuevoPeriodoCurso, setNuevoPeriodoCurso] = useState<string>('CUR-LEN');
-  const [nuevoPeriodoSeccion, setNuevoPeriodoSeccion] = useState<string>('SEC-101');
-  const [nuevoPeriodoDia, setNuevoPeriodoDia] = useState<number>(1); // Lunes
-  const [nuevoPeriodoHora, setNuevoPeriodoHora] = useState<string>('07:30'); // 1 = 07:30-08:15, 2 = 08:15-09:00
-
-  // Validar colisiones horarias en tiempo real
-  const colisionDetectada = useMemo(() => {
-    let horaInicioTarget = '07:30';
-    if (nuevoPeriodoHora === '08:15') {
-      horaInicioTarget = '08:15';
-    }
-
-    // Buscar si el docente ya tiene una clase asignada en el mismo día y hora
-    return horarios.some(h => 
-      h.docenteId === nuevoPeriodoDocente && 
-      h.diaSemana === nuevoPeriodoDia && 
-      h.horaInicio === horaInicioTarget
-    );
-  }, [horarios, nuevoPeriodoDocente, nuevoPeriodoDia, nuevoPeriodoHora]);
-
-  const handleAddPeriodo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (colisionDetectada) {
-      showToast('Error: Colisión de horarios detectada para este docente.', 'error');
-      return;
-    }
-
-    const docNombre = nuevoPeriodoDocente === 'DOC-10' ? 'Prof. Marcos Alonso' : 'Profe Ana';
-    const curNombre = cursos.find(c => c.id === nuevoPeriodoCurso)?.nombre || 'Curso';
-    const secNombre = secciones.find(s => s.id === nuevoPeriodoSeccion)?.nombreAsignacion || 'Sección';
-
-    let horaInicioTarget = '07:30';
-    let horaFinTarget = '08:15';
-    if (nuevoPeriodoHora === '08:15') {
-      horaInicioTarget = '08:15';
-      horaFinTarget = '09:00';
-    }
-
-    const nuevo: PeriodoHorario = {
-      id: `HOR-${Math.floor(100 + Math.random() * 900)}`,
-      docenteId: nuevoPeriodoDocente,
-      docenteNombre: docNombre,
-      cursoId: nuevoPeriodoCurso,
-      cursoNombre: curNombre,
-      seccionId: nuevoPeriodoSeccion,
-      seccionNombre: secNombre,
-      diaSemana: nuevoPeriodoDia,
-      horaInicio: horaInicioTarget,
-      horaFin: horaFinTarget
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
     };
 
-    setHorarios(prev => [...prev, nuevo]);
-    showToast('Periodo académico asignado exitosamente.', 'success');
+    try {
+      const res = await fetch('http://localhost:4000/api/admin/materias', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          nombre: nuevoCursoNombre.trim(),
+          idGrado: Number(selectedGrado)
+        })
+      });
+
+      if (!res.ok) throw new Error('Fallo al registrar curso.');
+
+      showToast(`Curso "${nuevoCursoNombre}" registrado con éxito en SQL Server.`, 'success');
+      setNuevoCursoNombre('');
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al registrar curso.', 'error');
+    }
   };
 
-  const handleAddSeccion = (e: React.FormEvent) => {
+  // 2. Crear Sección V2
+  const handleAddSeccion = async (e: React.FormEvent) => {
     e.preventDefault();
-    const gradoLabel = gradoOptions.find(o => o.value === seccionGrado)?.label || 'Grado';
-    const asignacionNombre = `${gradoLabel} Sección ${seccionLetra}`;
+    if (!seccionLetra.trim() || !seccionAula.trim()) {
+      showToast('Por favor, completa los campos de la sección.', 'error');
+      return;
+    }
 
-    const nuevaSec: SeccionAsignada = {
-      id: `SEC-${Math.floor(100 + Math.random() * 900)}`,
-      nombreAsignacion: asignacionNombre,
-      gradoId: seccionGrado === 1 ? 'FIRST_BASIC' : seccionGrado === 2 ? 'SECOND_BASIC' : 'THIRD_BASIC',
-      cicloAnio: seccionCiclo,
-      estudiantesIds: []
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
     };
 
-    setSecciones(prev => [...prev, nuevaSec]);
-    showToast(`Sección "${asignacionNombre}" estructurada de forma persistente.`, 'success');
+    try {
+      const res = await fetch('http://localhost:4000/api/admin/secciones', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          idGrado: Number(seccionGrado),
+          letraSeccion: seccionLetra.trim().toUpperCase(),
+          anio: seccionCiclo,
+          codigoAula: seccionAula.trim()
+        })
+      });
+
+      if (!res.ok) throw new Error('Fallo al estructurar sección.');
+
+      showToast(`Sección "${seccionLetra}" estructurada con éxito en SQL Server.`, 'success');
+      setSeccionLetra('A');
+      setSeccionAula('Aula 101');
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al estructurar sección.', 'error');
+    }
   };
 
-  // --- 3. ESTADOS PARA VINCULACIÓN Y MATRÍCULA ---
-  const [estudiantes, setEstudiantes] = useState([
-    { id: '1', nombre: 'Juan Pérez', seleccionado: false, matriculado: 'SEC-101' },
-    { id: '2', nombre: 'María Gómez', seleccionado: false, matriculado: 'SEC-101' },
-    { id: '3', nombre: 'Carlos Ruiz', seleccionado: false, matriculado: 'SEC-102' },
-    { id: '4', nombre: 'Luis Morales', seleccionado: false, matriculado: 'Ninguno' },
-    { id: '5', nombre: 'Sofía Díaz', seleccionado: false, matriculado: 'Ninguno' }
-  ]);
-
-  const [tutorSeleccionado, setTutorSeleccionado] = useState<string | null>(null);
-  const [matriculaSeccion, setMatriculaSeccion] = useState('SEC-101');
-
-  const toggleEstudiante = (id: string) => {
-    setEstudiantes(prev => prev.map(e => e.id === id ? { ...e, seleccionado: !e.seleccionado } : e));
-  };
-
-  const handleVincularTutor = (e: React.FormEvent) => {
+  // 3. Programar e Inyectar Horario (Collision checked)
+  const handleAddPeriodo = async (e: React.FormEvent) => {
     e.preventDefault();
-    const selectedCount = estudiantes.filter(e => e.seleccionado).length;
-    if (selectedCount === 0 || !tutorSeleccionado) {
-      showToast('Selecciona al menos un alumno y un Encargado.', 'error');
-      return;
-    }
-    showToast(`Viculación familiar: ${selectedCount} alumnos asociados a ${tutorSeleccionado}.`, 'success');
-    // Resetear
-    setEstudiantes(prev => prev.map(e => ({ ...e, seleccionado: false })));
-    setTutorSeleccionado(null);
-  };
+    setColisionBackendError(false);
 
-  const handleMatricularMasivo = () => {
-    const selectedCount = estudiantes.filter(e => e.seleccionado).length;
-    if (selectedCount === 0) {
-      showToast('Selecciona alumnos para matricular de forma masiva.', 'error');
+    if (!nuevoPeriodoSeccion || !nuevoPeriodoCurso || !nuevoPeriodoDocente || !nuevoPeriodoDia || !nuevoPeriodoHora || !nuevoPeriodoCiclo) {
+      showToast('Por favor, completa todos los campos del periodo, incluyendo el ciclo lectivo.', 'error');
       return;
     }
 
-    const secNombre = secciones.find(s => s.id === matriculaSeccion)?.nombreAsignacion || 'Sección';
-    setEstudiantes(prev => prev.map(e => e.seleccionado ? { ...e, matriculado: matriculaSeccion, seleccionado: false } : e));
-    showToast(`Matrícula exitosa: ${selectedCount} alumnos inscritos en "${secNombre}".`, 'success');
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    try {
+      const res = await fetch('http://localhost:4000/api/admin/horarios', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          idSeccion: Number(nuevoPeriodoSeccion),
+          idMateria: Number(nuevoPeriodoCurso),
+          idProfesor: Number(nuevoPeriodoDocente),
+          diaSemana: Number(nuevoPeriodoDia),
+          idPeriodo: Number(nuevoPeriodoHora),
+          idCiclo: Number(nuevoPeriodoCiclo)
+        })
+      });
+
+      // Interceptar código HTTP 409 de colisión horaria
+      if (res.status === 409) {
+        setColisionBackendError(true);
+        showToast('Error: ¡Colisión horaria detectada!', 'error');
+        return;
+      }
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData?.message || 'Fallo al programar periodo horario.');
+      }
+
+      showToast('Periodo académico inyectado exitosamente.', 'success');
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al programar periodo.', 'error');
+    }
   };
 
-  // --- 4. ESTADOS PARA COBRO DE CAJA MANUAL ---
-  const [pagos, setPagos] = useState<PagoAsentado[]>([
-    { id: 'PAG-101', estudianteId: '1', estudianteNombre: 'Juan Pérez', mesCiclo: 1, monto: 400, referenciaRecibo: 'REC-5020', fechaTransaccion: '2026-05-29' },
-    { id: 'PAG-102', estudianteId: '2', estudianteNombre: 'María Gómez', mesCiclo: 1, monto: 400, referenciaRecibo: 'REC-5021', fechaTransaccion: '2026-05-29' }
-  ]);
-  const [pagoEstudiante, setPagoEstudiante] = useState('1');
-  const [pagoMes, setPagoMes] = useState<number>(2); // Febrero
-  const [pagoMonto, setPagoMonto] = useState('400');
-  const [pagoRecibo, setPagoRecibo] = useState('');
+  // 4. Matricular Alumno Seleccionado
+  const handleMatricular = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudent) {
+      showToast('Selecciona un estudiante de la tabla de matrículas.', 'error');
+      return;
+    }
+    if (!matriculaSeccion) {
+      showToast('Selecciona la sección destino.', 'error');
+      return;
+    }
 
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    try {
+      const res = await fetch('http://localhost:4000/api/admin/matriculas', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          idAlumno: Number(selectedStudent.id),
+          idSeccion: Number(matriculaSeccion)
+        })
+      });
+
+      if (!res.ok) throw new Error('Fallo al asentar matrícula.');
+
+      showToast(`Alumno "${selectedStudent.nombre}" matriculado exitosamente.`, 'success');
+      setSelectedStudent(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al asentar matrícula.', 'error');
+    }
+  };
+
+  // 5. Vincular Encargado / Tutor
+  const handleVincularTutor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudent) {
+      showToast('Selecciona un estudiante de la tabla para vincularlo.', 'error');
+      return;
+    }
+    if (!tutorSeleccionado) {
+      showToast('Selecciona al encargado.', 'error');
+      return;
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    try {
+      const res = await fetch('http://localhost:4000/api/admin/vinculaciones', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          idAlumno: Number(selectedStudent.id),
+          idPadre: Number(tutorSeleccionado)
+        })
+      });
+
+      if (!res.ok) throw new Error('Fallo al vincular tutor.');
+
+      showToast(`Encargado asociado con éxito al estudiante "${selectedStudent.nombre}".`, 'success');
+      setSelectedStudent(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Error al vincular tutor familiar.', 'error');
+    }
+  };
+
+  // 6. Asentar cobro en caja manual
   const handleRegistrarPago = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pagoRecibo.trim() || !pagoMonto) {
+    if (!pagoRecibo.trim() || !pagoMonto || !pagoEstudiante) {
       showToast('Completa los campos de cobro de caja.', 'error');
       return;
     }
 
-    const estNombre = estudiantes.find(e => e.id === pagoEstudiante)?.nombre || 'Estudiante';
+    const estNombre = matriculas.find(m => String(m.id) === pagoEstudiante)?.nombre || 'Estudiante';
     const nuevoPago: PagoAsentado = {
       id: `PAG-${Math.floor(100 + Math.random() * 900)}`,
       estudianteId: pagoEstudiante,
@@ -267,6 +483,9 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
     setPagoRecibo('');
     showToast(`Mensualidad del mes ${pagoMes} asentada con éxito para ${estNombre}.`, 'success');
   };
+
+  // Filtrar periodos para excluir recesos y ordenar jornada
+  const periodosClase = periodos.filter(p => !p.esReceso && p.numeroPeriodo > 0);
 
   return (
     <div className={`space-y-6 text-slate-800 animate-in fade-in duration-300 font-sans`}>
@@ -286,11 +505,18 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
         </div>
       </div>
 
+      {loading && (
+        <div className="flex items-center justify-center p-8 bg-blue-50/20 border border-blue-100/50 rounded-xl gap-3 text-xs text-blue-600 font-medium">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+          <span>Sincronizando control académico con SQL Server local...</span>
+        </div>
+      )}
+
       {/* --- TAB 1: CONFIGURACIÓN BASE (CATÁLOGOS) --- */}
       {activeSubTab === 'catalogos' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Formulario Cursos (Lef Side - Column 5) */}
+          {/* Formulario Cursos (Left Side - Column 5) */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white border border-slate-150 rounded-lg p-5 shadow-sm text-left">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 mb-4 flex items-center gap-2">
@@ -317,7 +543,6 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     Grado Recomendado (Filtro)
                   </label>
-                  {/* Queda prohibido select nativo. Usando CustomSelect átomo */}
                   <CustomSelect
                     options={gradoOptions}
                     value={selectedGrado}
@@ -341,12 +566,16 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                 Listado de Cursos Cargados
               </h4>
               <div className="divide-y divide-slate-100 max-h-[180px] overflow-y-auto">
-                {cursos.map(c => (
-                  <div key={c.id} className="py-2.5 flex justify-between items-center text-xs">
-                    <span className="font-semibold text-slate-800">{c.nombre}</span>
-                    <span className="font-mono text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">{c.id}</span>
-                  </div>
-                ))}
+                {cursos.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-2">No hay cursos registrados en el catálogo.</p>
+                ) : (
+                  cursos.map(c => (
+                    <div key={c.id} className="py-2.5 flex justify-between items-center text-xs">
+                      <span className="font-semibold text-slate-800">{c.nombre}</span>
+                      <span className="font-mono text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">ID: {c.id}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -366,13 +595,12 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
 
               <div className="grid grid-cols-2 gap-4">
                 {ciclos.map(c => (
-                  <button
+                  <div
                     key={c.anio}
-                    onClick={() => handleToggleCiclo(c.anio)}
-                    className={`p-4 rounded-lg border text-left flex flex-col justify-between h-28 cursor-pointer transition ${
+                    className={`p-4 rounded-lg border text-left flex flex-col justify-between h-28 transition ${
                       c.activo
                         ? 'border-[#2563EB] bg-blue-50/20'
-                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100/50'
+                        : 'border-slate-200 bg-slate-50'
                     }`}
                   >
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -385,7 +613,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                       <span className={`h-1.5 w-1.5 rounded-full ${c.activo ? 'bg-[#2563EB]' : 'bg-slate-400'}`}></span>
                       {c.activo ? 'Ciclo Activo' : 'Inactivo'}
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -402,15 +630,15 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
 
               <div className="space-y-3 font-mono text-[11px]">
                 <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-2.5 rounded">
-                  <span className="font-bold text-slate-200">FIRST_BASIC</span>
+                  <span className="font-bold text-slate-200">ID: 1</span>
                   <span className="text-blue-400 font-bold">Primero Básico</span>
                 </div>
                 <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-2.5 rounded">
-                  <span className="font-bold text-slate-200">SECOND_BASIC</span>
+                  <span className="font-bold text-slate-200">ID: 2</span>
                   <span className="text-blue-400 font-bold">Segundo Básico</span>
                 </div>
                 <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-2.5 rounded">
-                  <span className="font-bold text-slate-200">THIRD_BASIC</span>
+                  <span className="font-bold text-slate-200">ID: 3</span>
                   <span className="text-blue-400 font-bold">Tercero Básico</span>
                 </div>
               </div>
@@ -425,7 +653,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
       {activeSubTab === 'secciones' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Creación de Secciones (Lef Side - Column 5) */}
+          {/* Creación de Secciones (Left Side - Column 5) */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white border border-slate-150 rounded-lg p-5 shadow-sm text-left">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 mb-4 flex items-center gap-2">
@@ -459,7 +687,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Identificador Sección
+                      Identificador Letra
                     </label>
                     <input
                       type="text"
@@ -471,6 +699,20 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                       className="block w-full rounded-[4px] border border-slate-200 py-2.5 px-3 text-slate-900 text-xs focus:border-[#2563EB] focus:outline-none text-center font-bold"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Código de Aula física
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={seccionAula}
+                    onChange={(e) => setSeccionAula(e.target.value)}
+                    placeholder="ej. Aula 101, Laboratorio B"
+                    className="block w-full rounded-[4px] border border-slate-200 py-2.5 px-3 text-slate-900 text-xs focus:border-[#2563EB] focus:outline-none"
+                  />
                 </div>
 
                 <button
@@ -486,18 +728,23 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
             {/* Listado de secciones persistidas */}
             <div className="bg-white border border-slate-150 rounded-lg p-5 shadow-sm text-left">
               <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider mb-3">
-                Secciones Estructuradas Activas
+                Secciones Estructuradas Activas (SQL Server)
               </h4>
               <div className="space-y-2">
-                {secciones.map(s => (
-                  <div key={s.id} className="p-3 bg-slate-50 border border-slate-100 rounded flex justify-between items-center text-xs">
-                    <div>
-                      <strong className="block text-slate-900">{s.nombreAsignacion}</strong>
-                      <span className="text-[10px] text-[#64748B]">Ciclo Lectivo {s.cicloAnio}</span>
+                {secciones.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No hay secciones registradas.</p>
+                ) : (
+                  secciones.map(s => (
+                    <div key={s.id} className="p-3 bg-slate-50 border border-slate-100 rounded flex justify-between items-center text-xs">
+                      <div>
+                        <strong className="block text-slate-900">{s.nombreAsignacion}</strong>
+                        <span className="text-[10px] text-[#64748B] block mt-0.5">Aula: {s.codigoAula}</span>
+                        <span className="text-[10px] text-slate-400">Año Ciclo: {s.cicloAnio}</span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-400 bg-white border border-slate-100 px-2 py-0.5 rounded">ID: {s.id}</span>
                     </div>
-                    <span className="font-mono font-bold text-slate-400 bg-white border border-slate-100 px-2 py-0.5 rounded">{s.id}</span>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -510,21 +757,26 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                 Asignación de Periodos (Validación de Colisiones)
               </h3>
               <p className="text-[11px] text-[#64748B] mb-4">
-                El programador validará colisiones horarias del docente en tiempo real. Intenta registrar a un docente en el mismo día y hora para ver la alerta de colisión.
+                El programador validará colisiones horarias del docente o de la sección en tiempo real contra SQL Server.
               </p>
 
               {/* Form de Programación */}
               <form onSubmit={handleAddPeriodo} className="space-y-4 bg-slate-50/50 p-4 border border-slate-100 rounded-lg">
-                <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-3 gap-4 text-xs">
                   <div>
                     <label className="block font-semibold text-slate-500 uppercase mb-1">Docente</label>
                     <select
                       value={nuevoPeriodoDocente}
                       onChange={(e) => setNuevoPeriodoDocente(e.target.value)}
-                      className="block w-full border border-slate-200 py-2 px-2.5 rounded bg-white"
+                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                     >
-                      <option value="DOC-10">Prof. Marcos Alonso</option>
-                      <option value="DOC-12">Profe Ana</option>
+                      {usuarios.filter(u => u.IdRol === 3 || u.IdRol === 2).length === 0 ? (
+                        <option value="">Cargando docentes...</option>
+                      ) : (
+                        usuarios.filter(u => u.IdRol === 3 || u.IdRol === 2).map(u => (
+                          <option key={u.IdUsuario} value={u.IdUsuario}>{u.NombreCompleto}</option>
+                        ))
+                      )}
                     </select>
                   </div>
                   <div>
@@ -532,11 +784,31 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                     <select
                       value={nuevoPeriodoCurso}
                       onChange={(e) => setNuevoPeriodoCurso(e.target.value)}
-                      className="block w-full border border-slate-200 py-2 px-2.5 rounded bg-white"
+                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                     >
-                      {cursos.map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
+                      {cursos.length === 0 ? (
+                        <option value="">Cargando cursos...</option>
+                      ) : (
+                        cursos.map(c => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-500 uppercase mb-1">Ciclo Lectivo</label>
+                    <select
+                      value={nuevoPeriodoCiclo}
+                      onChange={(e) => setNuevoPeriodoCiclo(e.target.value)}
+                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
+                    >
+                      {ciclosEscolares.length === 0 ? (
+                        <option value="">Cargando ciclos...</option>
+                      ) : (
+                        ciclosEscolares.map(c => (
+                          <option key={c.id} value={c.id}>{c.anio} {c.estado ? '(Activo)' : ''}</option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
@@ -547,11 +819,15 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                     <select
                       value={nuevoPeriodoSeccion}
                       onChange={(e) => setNuevoPeriodoSeccion(e.target.value)}
-                      className="block w-full border border-slate-200 py-2 px-2.5 rounded bg-white"
+                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                     >
-                      {secciones.map(s => (
-                        <option key={s.id} value={s.id}>{s.nombreAsignacion}</option>
-                      ))}
+                      {secciones.length === 0 ? (
+                        <option value="">Cargando secciones...</option>
+                      ) : (
+                        secciones.map(s => (
+                          <option key={s.id} value={s.id}>{s.nombreAsignacion}</option>
+                        ))
+                      )}
                     </select>
                   </div>
                   <div>
@@ -559,7 +835,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                     <select
                       value={nuevoPeriodoDia}
                       onChange={(e) => setNuevoPeriodoDia(parseInt(e.target.value))}
-                      className="block w-full border border-slate-200 py-2 px-2.5 rounded bg-white"
+                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                     >
                       <option value={1}>Lunes</option>
                       <option value={2}>Martes</option>
@@ -569,35 +845,40 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-500 uppercase mb-1">Periodo Horario</label>
+                    <label className="block font-semibold text-slate-500 uppercase mb-1">Periodo Horario (Tarde)</label>
                     <select
                       value={nuevoPeriodoHora}
                       onChange={(e) => setNuevoPeriodoHora(e.target.value)}
-                      className="block w-full border border-slate-200 py-2 px-2.5 rounded bg-white"
+                      className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                     >
-                      <option value="07:30">1° Periodo (07:30 - 08:15)</option>
-                      <option value="08:15">2° Periodo (08:15 - 09:00)</option>
+                      {periodosClase.length === 0 ? (
+                        <option value="">Cargando periodos...</option>
+                      ) : (
+                        periodosClase.map(p => (
+                          <option key={p.id} value={p.id}>{p.numeroPeriodo}° Periodo ({p.horaInicio} - {p.horaFin})</option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
 
-                {/* ALERTA DE COLISIÓN HORARIA EN TIEMPO REAL */}
-                {colisionDetectada && (
-                  <div className="flex gap-2.5 bg-red-50 border border-red-100 text-red-700 text-xs p-3 rounded-[4px] animate-in fade-in slide-in-from-top-1 duration-200">
-                    <AlertCircle className="shrink-0 text-red-600" size={16} />
+                {/* ALERTA DE COLISIÓN HORARIA DINÁMICA POR RESPUESTA 409 */}
+                {colisionBackendError && (
+                  <div className="flex gap-2.5 bg-red-50 border border-red-150 text-red-700 text-xs p-3.5 rounded-[4px] animate-in fade-in slide-in-from-top-1 duration-200">
+                    <AlertCircle className="shrink-0 text-red-600 mt-0.5" size={16} />
                     <span>
-                      <strong>¡COLISIÓN HORARIA DETECTADA!</strong> El docente seleccionado ya tiene programada una clase en este periodo del día. La base de datos denegará la transacción.
+                      <strong>¡COLISIÓN HORARIA DETECTADA!</strong> El docente o la sección ya tienen programada una clase en este periodo. La transacción ha sido denegada en SQL Server.
                     </span>
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  disabled={colisionDetectada}
+                  disabled={colisionBackendError}
                   className={`flex w-full items-center justify-center gap-2 rounded-[4px] py-2.5 text-xs font-bold transition shadow-sm ${
-                    colisionDetectada
+                    colisionBackendError
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      : 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white'
+                      : 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white cursor-pointer'
                   }`}
                 >
                   <Plus size={14} />
@@ -611,19 +892,26 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   Cronograma Escolar e Incidencias Asignadas
                 </h4>
                 <div className="space-y-2 max-h-[220px] overflow-y-auto">
-                  {horarios.map(h => (
-                    <div key={h.id} className="p-3 bg-white border border-slate-150 rounded flex justify-between items-center text-xs shadow-sm">
-                      <div>
-                        <strong className="block text-slate-900">{h.cursoNombre}</strong>
-                        <span className="text-[10px] text-slate-500 block">Docente: {h.docenteNombre}</span>
-                        <span className="text-[10px] text-[#64748B]">Sección: {h.seccionNombre}</span>
+                  {horarios.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No hay clases programadas en el cronograma.</p>
+                  ) : (
+                    horarios.map(h => (
+                      <div key={h.id} className="p-3 bg-white border border-slate-150 rounded flex justify-between items-center text-xs shadow-sm">
+                        <div>
+                          <strong className="block text-slate-900">{h.cursoNombre}</strong>
+                          <span className="text-[10px] text-slate-500 block">Docente: {h.docenteNombre}</span>
+                          <span className="text-[10px] text-[#64748B]">Sección: {h.seccionNombre} {h.cicloAnio ? `| Ciclo: ${h.cicloAnio}` : ''}</span>
+                        </div>
+                        <div className="text-right text-[10px] font-mono">
+                          <span className="block font-bold text-[#2563EB]">
+                            {h.diaSemana === 1 ? 'Lunes' : h.diaSemana === 2 ? 'Martes' : h.diaSemana === 3 ? 'Miércoles' : h.diaSemana === 4 ? 'Jueves' : 'Viernes'}
+                          </span>
+                          <span className="text-slate-450 block mt-0.5">{h.numeroPeriodo}° Periodo</span>
+                          <span className="text-slate-400">({h.horaInicio} - {h.horaFin})</span>
+                        </div>
                       </div>
-                      <div className="text-right text-[10px] font-mono">
-                        <span className="block font-bold text-[#2563EB]">{h.diaSemana === 1 ? 'Lunes' : 'Martes'}</span>
-                        <span className="text-slate-400">{h.horaInicio} - {h.horaFin}</span>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -637,65 +925,105 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
       {activeSubTab === 'vinculaciones' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Listado Masivo de Alumnos (Lef Side - Column 7) */}
+          {/* Listado de Matrículas en DataTable */}
           <div className="lg:col-span-7 space-y-6">
             <div className="bg-white border border-slate-150 rounded-lg p-5 shadow-sm text-left">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-2">
                   <Users size={16} className="text-[#2563EB]" />
-                  Selección Masiva de Alumnos (`StudentMassPicker`)
+                  Nómina y Control de Matrículas
                 </h3>
-                <span className="bg-slate-100 text-[10px] font-bold px-2 py-0.5 rounded text-slate-600">
-                  {estudiantes.filter(e => e.seleccionado).length} seleccionados
-                </span>
+                {selectedStudent && (
+                  <span className="bg-blue-100 border border-blue-200 text-[#2563EB] text-[9px] font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
+                    Seleccionado: {selectedStudent.nombre}
+                  </span>
+                )}
               </div>
 
-              {/* Lista interactiva */}
-              <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
-                {estudiantes.map(e => (
-                  <label key={e.id} className="flex items-center justify-between py-3 px-2.5 hover:bg-slate-50 rounded cursor-pointer transition">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={e.seleccionado}
-                        onChange={() => toggleEstudiante(e.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
-                      />
-                      <div>
-                        <strong className="text-xs text-slate-900">{e.nombre}</strong>
-                        <span className="block text-[9px] text-slate-400">ID: ALU-0{e.id}</span>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className={`inline-block rounded px-2 py-0.5 text-[9px] font-bold border ${
-                        e.matriculado === 'Ninguno'
-                          ? 'bg-amber-50 border-amber-100 text-amber-700'
-                          : 'bg-emerald-50 border-emerald-100 text-emerald-700'
-                      }`}>
-                        {e.matriculado === 'Ninguno' ? 'Sin Matrícula' : `Inscrito en ${secciones.find(s => s.id === e.matriculado)?.nombreAsignacion || e.matriculado}`}
-                      </span>
-                    </div>
-                  </label>
-                ))}
+              {/* DataTable responsiva de Tailwind */}
+              <div className="rounded-lg border border-slate-150 overflow-hidden shadow-sm bg-white">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-150 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="py-3.5 px-4">Estudiante</th>
+                        <th className="py-3.5 px-4">Sección Asignada</th>
+                        <th className="py-3.5 px-4">Encargado Relacionado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                      {matriculas.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-8 text-center text-slate-400 italic">
+                            No se encontraron registros de estudiantes en el sistema.
+                          </td>
+                        </tr>
+                      ) : (
+                        matriculas.map((m) => (
+                          <tr 
+                            key={m.id} 
+                            onClick={() => setSelectedStudent(m)}
+                            className={`hover:bg-blue-50/40 transition-colors cursor-pointer ${
+                              selectedStudent?.id === m.id ? 'bg-blue-50/85 font-semibold' : ''
+                            }`}
+                          >
+                            <td className="py-3.5 px-4">
+                              <div>
+                                <span className="block text-slate-900 font-semibold">{m.nombre}</span>
+                                <span className="block text-[9px] text-slate-400 font-mono">ID: ALU-0{m.id} | {m.correo}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {m.matriculadoSeccionNombre ? (
+                                <span className="inline-block rounded bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
+                                  {m.matriculadoSeccionNombre}
+                                </span>
+                              ) : (
+                                <span className="inline-block rounded bg-slate-100 border border-slate-200/50 px-2 py-0.5 text-[9px] font-bold text-slate-400">
+                                  Sin Matrícula
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 font-medium text-slate-650">
+                              {m.encargadoNombre ? (
+                                <span className="text-slate-800">{m.encargadoNombre}</span>
+                              ) : (
+                                <span className="text-slate-400 italic">No Vinculado</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+              <p className="text-[10px] text-slate-400 italic mt-3">
+                * Haz clic sobre la fila de un estudiante para seleccionarlo y habilitar las acciones de matrícula o vinculación familiar en el panel lateral.
+              </p>
             </div>
           </div>
 
           {/* Acciones de Matrícula y Tutores (Right Side - Column 5) */}
           <div className="lg:col-span-5 space-y-6">
             
-            {/* Matrícula Masiva */}
+            {/* Matrícula de Alumno Seleccionado */}
             <div className="bg-white border border-slate-150 rounded-lg p-5 shadow-sm text-left">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-2">
                 <CheckSquare size={16} className="text-[#2563EB]" />
-                Matrícula de Grupo Activo
+                Matrícula de Alumno
               </h3>
               <p className="text-[11px] text-[#64748B] mb-4">
-                Asigna de forma masiva los alumnos seleccionados del picker a una sección y ciclo lectivo específico.
+                Asigna al alumno seleccionado en la tabla a una sección y ciclo lectivo específico en la base de datos local.
               </p>
 
-              <div className="space-y-4">
+              <form onSubmit={handleMatricular} className="space-y-4">
+                {selectedStudent && (
+                  <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-[#2563EB]">
+                    <span>Asignar matrícula a: <strong>{selectedStudent.nombre}</strong></span>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     Seleccionar Sección Destino
@@ -703,8 +1031,9 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   <select
                     value={matriculaSeccion}
                     onChange={(e) => setMatriculaSeccion(e.target.value)}
-                    className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white"
+                    className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                   >
+                    <option value="">Seleccione una sección...</option>
                     {secciones.map(s => (
                       <option key={s.id} value={s.id}>{s.nombreAsignacion}</option>
                     ))}
@@ -712,45 +1041,61 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                 </div>
 
                 <button
-                  type="button"
-                  onClick={handleMatricularMasivo}
-                  className="flex w-full items-center justify-center gap-2 rounded-[4px] bg-slate-950 hover:bg-slate-800 text-white py-2.5 text-xs font-bold transition shadow-sm cursor-pointer"
+                  type="submit"
+                  disabled={!selectedStudent}
+                  className={`flex w-full items-center justify-center gap-2 rounded-[4px] py-2.5 text-xs font-bold transition shadow-sm cursor-pointer ${
+                    selectedStudent 
+                      ? 'bg-slate-950 hover:bg-slate-800 text-white' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
                   <CheckSquare size={14} />
-                  <span>Matricular Alumnos Seleccionados</span>
+                  <span>Matricular Alumno Seleccionado</span>
                 </button>
-              </div>
+              </form>
             </div>
 
             {/* Vinculación Familiar */}
             <div className="bg-white border border-slate-150 rounded-lg p-5 shadow-sm text-left">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 mb-2 flex items-center gap-2">
                 <Users size={16} className="text-[#2563EB]" />
-                Vincular Encargado/Tutor
+                Vincular Encargado / Tutor
               </h3>
               <p className="text-[11px] text-[#64748B] mb-4">
-                Asocia un único Encargado/Padre de Familia a los alumnos seleccionados para otorgarle acceso a su boleta de calificaciones.
+                Asocia un único Encargado/Padre de Familia al estudiante seleccionado de la tabla.
               </p>
 
               <form onSubmit={handleVincularTutor} className="space-y-4">
+                {selectedStudent && (
+                  <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-[#2563EB]">
+                    <span>Asociar tutor a: <strong>{selectedStudent.nombre}</strong></span>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     Encargado de Familia
                   </label>
                   <select
-                    value={tutorSeleccionado || ''}
-                    onChange={(e) => setTutorSeleccionado(e.target.value || null)}
-                    className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white"
+                    value={tutorSeleccionado}
+                    onChange={(e) => setTutorSeleccionado(e.target.value)}
+                    className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                   >
                     <option value="">Selecciona un Encargado...</option>
-                    <option value="Sr. Carlos Gómez">Sr. Carlos Gómez (Padre)</option>
-                    <option value="Sra. Mónica Ruano">Sra. Mónica Ruano (Madre)</option>
+                    {usuarios.filter(u => u.IdRol === 5).map(u => (
+                      <option key={u.IdUsuario} value={u.IdUsuario}>{u.NombreCompleto}</option>
+                    ))}
                   </select>
                 </div>
 
                 <button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-[4px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white py-2.5 text-xs font-bold transition shadow-sm cursor-pointer"
+                  disabled={!selectedStudent}
+                  className={`flex w-full items-center justify-center gap-2 rounded-[4px] py-2.5 text-xs font-bold transition shadow-sm cursor-pointer ${
+                    selectedStudent 
+                      ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
                   <span>Asociar Tutoría Familiar</span>
                 </button>
@@ -766,7 +1111,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
       {activeSubTab === 'caja' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Formulario Caja Manual (Lef Side - Column 5) */}
+          {/* Formulario Caja Manual (Left Side - Column 5) */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white border border-slate-150 rounded-lg p-5 shadow-sm text-left">
               <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900 mb-4 flex items-center gap-2">
@@ -782,9 +1127,9 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                   <select
                     value={pagoEstudiante}
                     onChange={(e) => setPagoEstudiante(e.target.value)}
-                    className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white"
+                    className="block w-full border border-slate-200 py-2.5 px-3 text-xs rounded bg-white focus:outline-none focus:border-[#2563EB]"
                   >
-                    {estudiantes.map(e => (
+                    {matriculas.map(e => (
                       <option key={e.id} value={e.id}>{e.nombre}</option>
                     ))}
                   </select>
@@ -882,7 +1227,7 @@ export default function ControlAcademicoDashboard({ activeSubTab }: ControlAcade
                         <td className="py-2 px-3 font-semibold text-[#2563EB]">{p.referenciaRecibo}</td>
                         <td className="py-2 px-3 font-sans font-semibold text-slate-800">{p.estudianteNombre}</td>
                         <td className="py-2 px-3 text-center">Mes {p.mesCiclo}</td>
-                        <td className="py-2 px-3 text-right font-bold text-slate-900">Q{p.monto.toFixed(2)}</td>
+                        <td className="py-2 px-3 text-right font-bold text-slate-900 font-mono text-[10px]">Q{p.monto.toFixed(2)}</td>
                         <td className="py-2 px-3 text-center text-slate-400">{p.fechaTransaccion}</td>
                       </tr>
                     ))}

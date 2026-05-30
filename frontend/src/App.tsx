@@ -16,13 +16,32 @@ import Docentes from './components/organisms/Docentes';
 import {
   AlertTriangle,
   Search,
-  Sparkles
+  Sparkles,
+  GraduationCap
 } from 'lucide-react';
 
 export default function App() {
   const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('login');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Limpieza automática de sesión corrupta o vieja por primera vez al recargar
+    const cleanedKey = 'sige_session_cleaned_2026';
+    if (!localStorage.getItem(cleanedKey)) {
+      localStorage.clear();
+      localStorage.setItem(cleanedKey, 'true');
+      window.location.reload();
+      return;
+    }
+
+    // Breve temporizador de hidratación para asegurar que la sesión esté completamente inyectada
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
 
   const getDefaultTab = () => {
     if (!user) return 'login';
@@ -122,8 +141,30 @@ export default function App() {
     { nombre: 'Dificultad de Ejercicios', valor: 58, color: 'bg-amber-500' }
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-slate-50 font-sans antialiased">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-xl animate-bounce">
+          <GraduationCap size={32} strokeWidth={2} />
+        </div>
+        <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-400 animate-pulse">
+          Cargando Portal...
+        </p>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Login />;
+  }
+
+  // Validación de seguridad ultra-defensiva para prevenir fallos en runtime por idRol indefinido o no numérico
+  if (!user || typeof user.idRol !== 'number' || isNaN(user.idRol) || ![1, 2, 3, 4, 5].includes(user.idRol)) {
+    // Si no es un rol válido para el sistema, limpiar localStorage de forma defensiva y redirigir
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    window.location.href = '/';
+    return null;
   }
 
   return (
@@ -136,7 +177,34 @@ export default function App() {
         {/* Cuerpo del Módulo Dinámico con Rejilla de Columnas (2/3 de Ancho y 1/3 Lateral, exacto al ejemplo) */}
         <main className="flex-grow p-8 max-w-7xl w-full mx-auto">
           
-          {/* TAB 0: CONTROL ACADÉMICO (CONTROL ACADÉMICO: ROL 2) */}
+          {/* PÁGINA BASE DE CONTENCIÓN PARA ROLES EN DESARROLLO (3, 4, 5) */}
+          {[3, 4, 5].includes(user.idRol) ? (
+            <div className="flex flex-col items-center justify-center min-h-[70vh] text-center p-8 bg-white border border-slate-100 rounded-2xl shadow-sm space-y-6 animate-in fade-in duration-300">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-[#2563EB] shadow-inner">
+                <Sparkles size={32} strokeWidth={1.8} className="animate-pulse" />
+              </div>
+              
+              <div className="space-y-2">
+                <span className="inline-block rounded-full bg-slate-100 border border-slate-200/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  {user.idRol === 3 ? 'Rol: Profesor / Docente' : user.idRol === 4 ? 'Rol: Alumno' : 'Rol: Encargado / Padre'}
+                </span>
+                <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+                  Módulo en desarrollo
+                </h1>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                  Hola, <b className="text-slate-800">{user.nombre}</b>. Estamos preparando tu entorno de trabajo. Próximamente se sincronizarán tus registros académicos.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-[#2563EB] animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="h-1.5 w-1.5 rounded-full bg-[#2563EB] animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="h-1.5 w-1.5 rounded-full bg-[#2563EB] animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* TAB 0: CONTROL ACADÉMICO (CONTROL ACADÉMICO: ROL 2) */}
           {activeTab === 'control-academico' && (
             <ProtectedRoute allowedRoles={[2]} onFallbackNavigate={() => setActiveTab(getDefaultTab())}>
               <ControlAcademicoDashboard activeSubTab="catalogos" />
@@ -569,6 +637,9 @@ export default function App() {
                 </div>
               </div>
             </ProtectedRoute>
+          )}
+
+            </>
           )}
 
         </main>
