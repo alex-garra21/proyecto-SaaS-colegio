@@ -625,14 +625,146 @@ BEGIN
 END;
 GO
 
+-- ============================================================================
+-- EXTENSIÓN DE INFRAESTRUCTURA: CONTROL ACADÉMICO Y MATRÍCULAS
+-- ============================================================================
 
 USE SistemaColegioLocal;
 GO
 
--- Inserción directa e independiente de los 5 usuarios mínimos obligatorios
-EXEC sp_RegistrarUsuario @Nombres = 'Alexander', @Apellidos = 'Reyes Admin', @Correo = 'admin@eduwonder.com', @Password = 'Edu1234', @IdRol = 1;
-EXEC sp_RegistrarUsuario @Nombres = 'Luis', @Apellidos = 'Rivera', @Correo = 'admin.prof@eduwonder.com', @Password = 'Edu1234', @IdRol = 2;
-EXEC sp_RegistrarUsuario @Nombres = 'Roberto', @Apellidos = 'Gonzales', @Correo = 'prof@eduwonder.com', @Password = 'Edu1234', @IdRol = 3;
-EXEC sp_RegistrarUsuario @Nombres = 'Carlos', @Apellidos = 'Requena', @Correo = 'alumno@eduwonder.com', @Password = 'Edu1234', @IdRol = 4;
-EXEC sp_RegistrarUsuario @Nombres = 'Eduardo', @Apellidos = 'garcia', @Correo = 'familia@eduwonder.com', @Password = 'Edu1234', @IdRol = 5;
+-- 1. CREACIÓN DE CATÁLOGO: CICLO ESCOLAR
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CicloEscolar]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE CicloEscolar (
+        IdCiclo INT IDENTITY(1,1) NOT NULL,
+        Anio INT NOT NULL,
+        Estado BIT DEFAULT 1 NOT NULL, -- 1 = Activo, 0 = Cerrado
+        CONSTRAINT PK_CicloEscolar PRIMARY KEY (IdCiclo),
+        CONSTRAINT UQ_Anio UNIQUE (Anio)
+    );
+END
+GO
+
+-- 2. REESTRUCTURACIÓN DE SECCIÓN (Contenedor Puro de Aula/Grupo)
+-- Si ya existía una tabla Sección vieja, la adaptamos o creamos la nueva estructura en 3FN
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SeccionV2]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE SeccionV2 (
+        IdSeccion INT IDENTITY(1,1) NOT NULL,
+        IdGrado INT NOT NULL,
+        LetraSeccion VARCHAR(10) NOT NULL,
+        Anio INT NOT NULL, -- Mantenido por compatibilidad de tipos con la app actual
+        CodigoAula VARCHAR(50) NOT NULL, -- Ej: SEC-101, SEC-102
+        CONSTRAINT PK_SeccionV2 PRIMARY KEY (IdSeccion),
+        CONSTRAINT UQ_SeccionV2_Grupo UNIQUE (IdGrado, LetraSeccion, Anio),
+        CONSTRAINT FK_SeccionV2_Grado FOREIGN KEY (IdGrado) REFERENCES Grado(IdGrado)
+    );
+END
+GO
+
+-- 3. TABLA MAESTRA ESTÁTICA: PERIODOS HORARIOS (JORNADA VESPERTINA)
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[PeriodoHorario]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE PeriodoHorario (
+        IdPeriodo INT IDENTITY(1,1) NOT NULL,
+        NumeroPeriodo INT NOT NULL,
+        HoraInicio TIME NOT NULL,
+        HoraFin TIME NOT NULL,
+        EsReceso BIT DEFAULT 0 NOT NULL,
+        CONSTRAINT PK_PeriodoHorario PRIMARY KEY (IdPeriodo)
+    );
+END
+GO
+
+-- 4. TABLA TRANSACCIONAL CENTRAL: HORARIO DE CLASES (Asignaciones y Colisiones)
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[HorarioClase]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE HorarioClase (
+        IdHorario INT IDENTITY(1,1) NOT NULL,
+        IdSeccion INT NOT NULL, -- Relación al contenedor de la sección
+        IdMateria INT NOT NULL,
+        IdProfesor INT NOT NULL, -- Relación al Usuario Docente
+        DiaSemana INT NOT NULL,  -- 1 = Lunes, 2 = Martes, 3 = Miércoles, 4 = Jueves, 5 = Viernes
+        IdPeriodo INT NOT NULL,  -- Relación al bloque de tiempo
+        CONSTRAINT PK_HorarioClase PRIMARY KEY (IdHorario),
+        CONSTRAINT FK_HorarioClase_Seccion FOREIGN KEY (IdSeccion) REFERENCES SeccionV2(IdSeccion),
+        CONSTRAINT FK_HorarioClase_Materia FOREIGN KEY (IdMateria) REFERENCES Materia(IdMateria),
+        CONSTRAINT FK_HorarioClase_Profesor FOREIGN KEY (IdProfesor) REFERENCES Usuario(IdUsuario),
+        CONSTRAINT FK_HorarioClase_Periodo FOREIGN KEY (IdPeriodo) REFERENCES PeriodoHorario(IdPeriodo),
+        
+        -- REGLAS DE ORO TRANSACCIONALES (ÍNDICES ÚNICOS DE CONTROL DE COLISIONES)
+        CONSTRAINT UQ_AntiColision_Profesor UNIQUE (IdProfesor, DiaSemana, IdPeriodo),
+        CONSTRAINT UQ_AntiColision_Seccion UNIQUE (IdSeccion, DiaSemana, IdPeriodo)
+    );
+END
+GO
+
+-- ============================================================================
+-- POBLADO INICIAL DEL HORARIO OFICIAL DE LA TARDE (Mapeo exacto de Excel)
+-- ============================================================================
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 1)
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (1, '13:00:00', '13:35:00', 0);
+
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 2)
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (2, '13:35:00', '14:10:00', 0);
+
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 3)
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (3, '14:10:00', '14:45:00', 0);
+
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 4)
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (4, '14:45:00', '15:20:00', 0);
+
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 0) -- Receso Informativo
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (0, '15:20:00', '15:45:00', 1);
+
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 5)
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (5, '15:45:00', '16:20:00', 0);
+
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 6)
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (6, '16:20:00', '16:55:00', 0);
+
+IF NOT EXISTS (SELECT 1 FROM PeriodoHorario WHERE NumeroPeriodo = 7)
+    INSERT INTO PeriodoHorario (NumeroPeriodo, HoraInicio, HoraFin, EsReceso) VALUES (7, '16:55:00', '17:30:00', 0);
+GO
+
+USE SistemaColegioLocal;
+GO
+
+-- 1. DESVINCULAR MATERIA DE GRADO
+-- Removemos la llave foránea si existe y la columna IdGrado para independizar los cursos
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Materia_Grado')
+BEGIN
+    ALTER TABLE Materia DROP CONSTRAINT FK_Materia_Grado;
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Materia') AND name = 'IdGrado')
+BEGIN
+    ALTER TABLE Materia DROP COLUMN IdGrado;
+END
+GO
+
+-- 2. INTEGRAR CICLO ESCOLAR AL MAPEO DE HORARIOS Y COLISIONES
+-- Añadimos IdCiclo a HorarioClase si no existe
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('HorarioClase') AND name = 'IdCiclo')
+BEGIN
+    ALTER TABLE HorarioClase ADD IdCiclo INT NOT NULL;
+    
+    -- Añadimos la relación foránea hacia CicloEscolar
+    ALTER TABLE HorarioClase ADD CONSTRAINT FK_HorarioClase_Ciclo FOREIGN KEY (IdCiclo) REFERENCES CicloEscolar(IdCiclo);
+END
+GO
+
+-- 3. RECONSTRUCCIÓN DE LAS REGLAS DE ORO ANTI-COLISIÓN (Incluyendo el Ciclo)
+-- Primero removemos las restricciones anteriores para actualizarlas
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_AntiColision_Profesor' AND type = 'UQ')
+    ALTER TABLE HorarioClase DROP CONSTRAINT UQ_AntiColision_Profesor;
+
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_AntiColision_Seccion' AND type = 'UQ')
+    ALTER TABLE HorarioClase DROP CONSTRAINT UQ_AntiColision_Seccion;
+GO
+
+-- Añadimos las nuevas restricciones que validan colisiones por año/ciclo específico
+ALTER TABLE HorarioClase ADD CONSTRAINT UQ_AntiColision_Profesor UNIQUE (IdProfesor, DiaSemana, IdPeriodo, IdCiclo);
+ALTER TABLE HorarioClase ADD CONSTRAINT UQ_AntiColision_Seccion UNIQUE (IdSeccion, DiaSemana, IdPeriodo, IdCiclo);
 GO
