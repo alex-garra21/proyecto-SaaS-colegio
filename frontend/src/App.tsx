@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArrowRight,
   Award,
@@ -223,7 +223,7 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
               className="mb-2 text-[32px] font-bold leading-10 text-[#1b1c1c]"
               style={{ color: '#1b1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
-              Â¡Hola de nuevo!
+              ¡Hola de nuevo!
             </h1>
             <p className="text-lg leading-7 text-[#434655]">Accede a tu portal educativo personalizado</p>
           </div>
@@ -236,7 +236,7 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
                   htmlFor="email"
                   style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 >
-                  Correo Electronico
+                  Correo Electrónico
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#737687]" size={22} />
@@ -259,14 +259,14 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
                     htmlFor="password"
                     style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                   >
-                    Contrasena
+                    Contraseña
                   </label>
                   <a
                     className="text-sm font-semibold leading-5 tracking-[0.02em] text-[#004ddb] transition-all hover:underline"
                     href="#"
                     style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                   >
-                    Â¿Olvidaste tu contrasena?
+                    ¿Olvidaste tu contraseña?
                   </a>
                 </div>
                 <div className="relative">
@@ -275,7 +275,7 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
                     className="h-[56px] w-full rounded-lg border-2 border-[#eae8e7] bg-[#fbf9f8] pl-12 pr-20 text-lg leading-7 text-[#1b1c1c] outline-none transition-colors focus:border-[#004ddb]"
                     id="password"
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                    placeholder="••••••••"
                     required
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -301,7 +301,7 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
                   htmlFor="remember"
                   style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 >
-                  Mantener sesion iniciada
+                  Mantener sesión iniciada
                 </label>
               </div>
 
@@ -322,7 +322,7 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
 
             <div className="mt-8 border-t border-[#eae8e7] pt-6 text-center">
               <p className="text-lg leading-7 text-[#434655]">
-                Â¿No tienes una cuenta? <a className="font-bold text-[#006e28] hover:underline" href="#">Registrate gratis</a>
+                ¿No tienes una cuenta? <a className="font-bold text-[#006e28] hover:underline" href="#">Regístrate gratis</a>
               </p>
             </div>
 
@@ -351,7 +351,7 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
               EduWonder
             </div>
             <p className="text-sm leading-5 text-[#434655]">
-              Â© 2026 EduWonder. Plataforma disenada para conectar la gestion escolar, el aprendizaje y el acompanamiento familiar.
+              © 2026 EduWonder. Plataforma diseñada para conectar la gestión escolar, el aprendizaje y el acompañamiento familiar.
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -359,11 +359,11 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
               className="mb-2 text-sm font-semibold leading-5 tracking-[0.02em] text-[#1b1c1c]"
               style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
-              Compania
+              Compañía
             </span>
             <a className="text-sm leading-5 text-[#434655] transition-colors hover:text-[#004ddb]" href="#">Contacto</a>
             <a className="text-sm leading-5 text-[#434655] transition-colors hover:text-[#004ddb]" href="#">Privacidad</a>
-            <a className="text-sm leading-5 text-[#434655] transition-colors hover:text-[#004ddb]" href="#">Terminos de servicio</a>
+            <a className="text-sm leading-5 text-[#434655] transition-colors hover:text-[#004ddb]" href="#">Términos de servicio</a>
           </div>
           <div className="flex flex-col gap-2">
             <span
@@ -580,11 +580,11 @@ function PublicBlog({ onLogin }: { onLogin: () => void }) {
                   className="text-2xl font-bold leading-8 text-[#fcfaff]"
                   style={{ color: '#fcfaff', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 >
-                  Â¿Quieres mas recursos?
+                  ¿Quieres más recursos?
                 </h3>
-                <p className="text-lg leading-7">Suscribete a nuestra newsletter semanal para recibir actividades y consejos exclusivos.</p>
+                <p className="text-lg leading-7">Suscríbete a nuestra newsletter semanal para recibir actividades y consejos exclusivos.</p>
                 <div className="w-full space-y-2">
-                  <input className="h-12 w-full rounded-xl border-2 border-white/30 bg-white/20 px-4 text-white outline-none placeholder:text-white/70 focus:border-white" placeholder="Tu correo electronico" type="email" />
+                  <input className="h-12 w-full rounded-xl border-2 border-white/30 bg-white/20 px-4 text-white outline-none placeholder:text-white/70 focus:border-white" placeholder="Tu correo electrónico" type="email" />
                   <button className="h-12 w-full rounded-xl bg-white font-bold text-[#004ddb] transition-transform active:scale-95" type="button">
                     Suscribirme
                   </button>
@@ -604,10 +604,10 @@ function PublicBlog({ onLogin }: { onLogin: () => void }) {
             >
               EduWonder
             </span>
-            <p className="max-w-xs text-lg leading-7 text-[#434655]">Transformando la educacion a traves de la tecnologia y la pasion por ensenar.</p>
+            <p className="max-w-xs text-lg leading-7 text-[#434655]">Transformando la educación a través de la tecnología y la pasión por enseñar.</p>
           </div>
           <div className="flex flex-col gap-3">
-            <h4 className="text-sm font-bold uppercase leading-5 tracking-[0.02em] text-[#004ddb]">Navegacion</h4>
+            <h4 className="text-sm font-bold uppercase leading-5 tracking-[0.02em] text-[#004ddb]">Navegación</h4>
             <a className="text-sm leading-5 text-[#434655] transition-colors hover:text-[#004ddb]" href="#">Contact</a>
             <a className="text-sm leading-5 text-[#434655] transition-colors hover:text-[#004ddb]" href="#">Privacy Policy</a>
             <a className="text-sm leading-5 text-[#434655] transition-colors hover:text-[#004ddb]" href="#">Terms of Service</a>
@@ -620,7 +620,7 @@ function PublicBlog({ onLogin }: { onLogin: () => void }) {
               <span className="grid h-10 w-10 place-items-center rounded-full bg-[#eae8e7] text-[#434655]">W</span>
               <span className="grid h-10 w-10 place-items-center rounded-full bg-[#eae8e7] text-[#434655]">G</span>
             </div>
-            <p className="mt-4 text-sm leading-5 text-[#434655]">Â© 2026 EduWonder. Bridging curiosity and knowledge.</p>
+            <p className="mt-4 text-sm leading-5 text-[#434655]">© 2026 EduWonder. Bridging curiosity and knowledge.</p>
           </div>
         </div>
       </footer>
@@ -2018,9 +2018,9 @@ function StudentViews({ view, setView, onLogout }: { view: View; setView: (view:
         <div className="absolute -bottom-24 -left-20 h-52 w-52 rounded-full bg-white/10" />
         <div className="relative z-10">
           <span className="inline-flex rounded-full bg-[#6ffb85] px-4 py-2 text-sm font-bold text-[#005321]">Martes de aprendizaje</span>
-          <h2 className="mt-4 text-4xl font-bold leading-tight text-white md:text-5xl">Â¡Hola, Explorador!</h2>
+          <h2 className="mt-4 text-4xl font-bold leading-tight text-white md:text-5xl">¡Hola, Explorador!</h2>
           <p className="mt-4 max-w-xl text-xl font-medium leading-8 text-white/90">Tienes misiones nuevas, recursos de tus profes y medallas esperando por ti.</p>
-          <button onClick={() => setView('student-tasks')} className="student-pressable mt-6 rounded-full bg-[#fdd029] px-9 py-5 text-2xl font-bold text-[#231b00]" type="button">Â¡Empezar ahora!</button>
+          <button onClick={() => setView('student-tasks')} className="student-pressable mt-6 rounded-full bg-[#fdd029] px-9 py-5 text-2xl font-bold text-[#231b00]" type="button">¡Empezar ahora!</button>
         </div>
         <div className="relative mx-auto">
           <span className="student-float absolute -left-4 -top-4 grid h-12 w-12 place-items-center rounded-full bg-[#76fd94] text-[#002109] shadow-lg"><Sparkles size={22} /></span>
@@ -2097,7 +2097,7 @@ function StudentClasses({ onOpen }: { onOpen: () => void }) {
   ];
 
   return (
-    <StudentPage title="Mis Cursos" subtitle="Â¡Hola Leo! Estos son todos los cursos que llevas. Â¿Por donde quieres empezar?">
+    <StudentPage title="Mis Cursos" subtitle="¡Hola Leo! Estos son todos los cursos que llevas. ¿Por dónde quieres empezar?">
       <div className="grid gap-6 lg:grid-cols-2">
         {courses.map((course, index) => (
           <article className={`student-card-hover overflow-hidden rounded-[2rem] border border-[#e2e8f7] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.06)] ${index === 0 ? 'lg:col-span-2 lg:grid lg:grid-cols-[1.1fr_0.9fr]' : ''}`} key={course.title}>
@@ -2306,7 +2306,7 @@ function StudentCalendar() {
             <StudentCard key={event}>
               <span className="inline-grid h-12 w-12 place-items-center rounded-2xl bg-[#d8e2ff] text-[#0058bd]">{[<ClipboardList />, <BookOpen />, <Award />][index]}</span>
               <h3 className="mt-4 text-xl font-bold text-[#151c26]">{event}</h3>
-              <p className="mt-1 font-medium text-[#414754]">{['12 Oct', '18 Oct', '24 Oct'][index]} Â· Aventura programada</p>
+              <p className="mt-1 font-medium text-[#414754]">{['12 Oct', '18 Oct', '24 Oct'][index]} · Aventura programada</p>
             </StudentCard>
           ))}
         </aside>
@@ -2334,7 +2334,7 @@ function StudentLibrary() {
           <StudentCard key={resource.title}>
             <span className="inline-grid h-14 w-14 place-items-center rounded-2xl bg-[#fdd029] text-[#231b00]">{[<BookOpen />, <FileText />, <Upload />][index % 3]}</span>
             <h3 className="mt-5 text-xl font-bold text-[#151c26]">{resource.title}</h3>
-            <p className="mt-2 font-medium text-[#414754]">{resource.type} Â· {resource.minutes} min</p>
+            <p className="mt-2 font-medium text-[#414754]">{resource.type} · {resource.minutes} min</p>
             <button className="mt-5 w-full rounded-3xl bg-[#0058bd] px-5 py-3 font-bold text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.2)]" type="button">Abrir recurso</button>
           </StudentCard>
         ))}
